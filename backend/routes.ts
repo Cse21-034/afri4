@@ -128,20 +128,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Generate JWT token
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
       res.status(201).json({
-        message: 'Registration successful. Please check your email for verification.',
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          companyName: user.companyName,
-          subscriptionStatus: user.subscriptionStatus,
-          emailVerified: user.emailVerified
-        }
+        message: 'Registration successful. Please check your email for verification.'
       });
     } catch (error: any) {
       console.error('Trucking registration error:', error);
@@ -180,20 +168,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Generate JWT token
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
       res.status(201).json({
-        message: 'Registration successful. Please check your email for verification.',
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          companyName: user.companyName,
-          subscriptionStatus: user.subscriptionStatus,
-          emailVerified: user.emailVerified
-        }
+        message: 'Registration successful. Please check your email for verification.'
       });
     } catch (error: any) {
       console.error('Shipping registration error:', error);
@@ -284,6 +260,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         return res.status(401).json({ 
           message: `Invalid credentials. ${5 - attempts} attempts remaining.`
+        });
+      }
+
+      // Check if email is verified
+      if (!user.emailVerified) {
+        return res.status(401).json({ 
+          message: 'Please verify your email before logging in.',
+          emailNotVerified: true
         });
       }
 

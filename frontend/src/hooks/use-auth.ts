@@ -61,10 +61,7 @@ export function useAuth() {
       const response = await apiRequest('POST', endpoint, data.userData);
       return response.json();
     },
-    onSuccess: (data: AuthResponse) => {
-      localStorage.setItem('auth_token', data.token);
-      queryClient.setQueryData(['/api/auth/me'], { user: data.user });
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+    onSuccess: (data: { message: string }) => {
       toast({
         title: "Success",
         description: data.message,

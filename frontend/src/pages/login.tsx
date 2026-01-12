@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Truck, Eye, EyeOff } from "lucide-react";
+import { Truck, Eye, EyeOff, AlertCircle } from "lucide-react";
 import Navbar from "@/components/ui/navbar";
 import Footer from "@/components/ui/footer";
 import { useForm } from "react-hook-form";
@@ -25,6 +25,7 @@ export default function Login() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -32,9 +33,15 @@ export default function Login() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
+    setLoginError(null);
     
     try {
       const response = await apiRequest('POST', '/api/auth/login', data);
+      
+      if (!response.ok) {
+        throw response;
+      }
+
       const result = await response.json();
       
       // Check if 2FA is required
@@ -60,13 +67,26 @@ export default function Login() {
         description: "Login successful!",
       });
       
-      navigate("/dashboard");
+      window.location.href = "/dashboard"; // Use full page reload to ensure auth state is updated
     } catch (error: any) {
-      toast({
-        title: "Login Failed",
-        description: error.message || "Invalid credentials",
-        variant: "destructive",
-      });
+      try {
+        const errorData = await error.json();
+        if (errorData.emailNotVerified) {
+          setLoginError(errorData.message);
+        } else {
+          toast({
+            title: "Login Failed",
+            description: errorData.message || "Invalid credentials",
+            variant: "destructive",
+          });
+        }
+      } catch (e) {
+        toast({
+          title: "Login Failed",
+          description: "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -92,6 +112,18 @@ export default function Login() {
             </CardHeader>
             
             <CardContent>
+              {loginError && (
+                <div className="bg-destructive/10 border border-destructive/50 text-destructive p-3 rounded-md mb-6 flex items-start space-x-3">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    {loginError}{" "}
+                    <Link href="/resend-verification" className="font-semibold hover:underline">
+                      Resend verification email
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div>
                   <Label htmlFor="email">Email Address</Label>

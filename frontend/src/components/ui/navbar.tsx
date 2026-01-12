@@ -123,10 +123,12 @@ export default function Navbar() {
                       <User className="mr-2 h-4 w-4" />
                       Profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem data-testid="menu-settings">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </DropdownMenuItem>
+                    <Link href="/account/security">
+                      <DropdownMenuItem data-testid="menu-settings">
+                        <Settings className="mr-2 h-4 w-4" />
+                        Settings
+                      </DropdownMenuItem>
+                    </Link>
                     <DropdownMenuItem onClick={logout} data-testid="menu-logout">
                       <LogOut className="mr-2 h-4 w-4" />
                       Logout
@@ -196,6 +198,13 @@ export default function Navbar() {
                             {item.name}
                           </Link>
                         ))}
+                        <Link
+                          href="/account/security"
+                          className="block py-2 text-foreground hover:text-primary transition-colors"
+                          data-testid={`mobile-user-nav-settings`}
+                        >
+                          Settings
+                        </Link>
                       </div>
                       <Button
                         variant="outline"

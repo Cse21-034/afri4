@@ -137,7 +137,7 @@ export default function Register() {
 
     try {
       await register({ type: "trucking", userData: data });
-      navigate("/dashboard");
+      navigate("/check-your-email");
     } catch (error) {
       // Error handled by useAuth hook
     }
@@ -151,7 +151,7 @@ export default function Register() {
 
     try {
       await register({ type: "shipping", userData: data });
-      navigate("/dashboard");
+      navigate("/check-your-email");
     } catch (error) {
       // Error handled by useAuth hook
     }
