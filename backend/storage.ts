@@ -25,9 +25,7 @@ interface IStorage {
   getUserByEmail(email: string): Promise<User | null>;
   updateUser(id: number, data: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<void>;
   updateUserSubscription(id: number, data: {
-    stripeCustomerId?: string;
-    stripeSubscriptionId?: string;
-    subscriptionStatus: 'active' | 'inactive' | 'trial';
+        subscriptionStatus: 'active' | 'inactive' | 'trial';
     subscriptionExpiresAt?: Date;
   }): Promise<void>;
   
@@ -173,17 +171,13 @@ class PostgreSQLStorage implements IStorage {
   }
 
   async updateUserSubscription(id: number, data: {
-    stripeCustomerId?: string;
-    stripeSubscriptionId?: string;
-    subscriptionStatus: 'active' | 'inactive' | 'trial';
+        subscriptionStatus: 'active' | 'inactive' | 'trial';
     subscriptionExpiresAt?: Date;
   }): Promise<void> {
     await db
       .update(users)
       .set({
-        stripeCustomerId: data.stripeCustomerId,
-        stripeSubscriptionId: data.stripeSubscriptionId,
-        subscriptionStatus: data.subscriptionStatus,
+                subscriptionStatus: data.subscriptionStatus,
         subscriptionExpiresAt: data.subscriptionExpiresAt,
         updatedAt: new Date(),
       } as any)

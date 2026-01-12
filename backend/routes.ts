@@ -5,11 +5,11 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import Stripe from 'stripe';
 import crypto from 'crypto';
 import { storage } from "./storage.js";
 import { WebSocketService } from "./services/services/websocket.js";
 import { emailService } from "./services/services/email.js";
+import { createSubscription, getSubscription } from "./services/services/paypal.js";
 import { authenticateToken, requireRole, requireSubscription, AuthRequest } from "./middleware/middleware/auth.js";
 import { 
   loginSchema, 
@@ -25,14 +25,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-productio
 if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
   console.warn('JWT_SECRET not set. Using development secret.');
 }
-
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.warn('STRIPE_SECRET_KEY not set. Payment functionality will be disabled.');
-}
-
-const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-08-27.basil",
-}) : null;
 
 // Configure multer for file uploads
 const uploadDir = 'uploads';
@@ -899,129 +891,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ==================== PAYMENT ROUTES (Stripe integration) ====================
+  // ==================== PAYMENT ROUTES (PayPal integration) ====================
 
-  if (stripe) {
-    app.post('/api/payments/create-subscription', authenticateToken, requireRole([UserRole.TRUCKING_COMPANY]), async (req: AuthRequest, res) => {
+  const PAYPAL_PLAN_ID = process.env.PAYPAL_PLAN_ID;
+
+  if (PAYPAL_PLAN_ID) {
+    app.post('/api/payments/paypal/create-subscription', authenticateToken, requireRole([UserRole.TRUCKING_COMPANY]), async (req: AuthRequest, res) => {
       try {
         const user = req.user!;
-
-        // If user already has a subscription, return existing one
-        if (user.stripeSubscriptionId) {
-          const subscription = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
-          if (subscription.status === 'active') {
-            return res.json({
-              message: 'Subscription already active',
-              subscriptionId: subscription.id
-            });
-          }
+        const result = await createSubscription(PAYPAL_PLAN_ID, user.email);
+        
+        // Find the approval link
+        const approvalLink = result.links.find(link => link.rel === 'approve');
+        
+        if (approvalLink) {
+          res.json({ approvalUrl: approvalLink.href });
+        } else {
+          res.status(500).json({ message: 'Could not get PayPal approval URL' });
         }
-
-        // Create Stripe customer if doesn't exist
-        let customerId = user.stripeCustomerId;
-        if (!customerId) {
-          const customer = await stripe.customers.create({
-            email: user.email,
-            name: user.companyName || user.contactPersonName,
-            metadata: {
-              userId: user.id!
-            }
-          });
-          customerId = customer.id;
-          await storage.updateUser(user.id!, { stripeCustomerId: customerId });
-        }
-
-        // Create subscription
-        const subscription = await stripe.subscriptions.create({
-          customer: customerId,
-          items: [{
-            price_data: {
-              currency: 'usd', // Using USD instead of BWP for Stripe compatibility
-              product_data: {
-                name: 'LoadLink Africa Trucking Subscription',
-                description: 'Monthly subscription for trucking companies'
-              },
-              unit_amount: 2000, // $20 USD equivalent to BWP 500
-              recurring: {
-                interval: 'month'
-              }
-            } as any
-          }],
-          payment_behavior: 'default_incomplete',
-          expand: ['latest_invoice.payment_intent'],
-        });
-
-        // Update user with subscription info
-        await storage.updateUserSubscription(user.id!, {
-          stripeSubscriptionId: subscription.id,
-          subscriptionStatus: 'active',
-          subscriptionExpiresAt: new Date((subscription as any).current_period_end * 1000)
-        });
-
-        res.json({
-          message: 'Subscription created successfully',
-          subscriptionId: subscription.id,
-          clientSecret: (subscription.latest_invoice as any)?.payment_intent?.client_secret
-        });
       } catch (error: any) {
-        console.error('Subscription creation error:', error);
-        res.status(500).json({ message: 'Failed to create subscription' });
+        console.error('PayPal subscription creation error:', error);
+        res.status(500).json({ message: 'Failed to create PayPal subscription' });
       }
     });
 
-    app.post('/api/payments/webhook', async (req, res) => {
-      const sig = req.headers['stripe-signature'] as string;
-      let event;
-
+    app.get('/api/payments/paypal/subscription/:subscriptionId', authenticateToken, async (req: AuthRequest, res) => {
       try {
-        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
-      } catch (err: any) {
-        console.error('Webhook signature verification failed:', err.message);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
+        const { subscriptionId } = req.params;
+        const subscription = await getSubscription(subscriptionId);
+        
+        // You can update your database with the subscription status here
+        // For example, if subscription.status === 'ACTIVE'
+        
+        res.json({ subscription });
+      } catch (error: any) {
+        console.error('PayPal get subscription error:', error);
+        res.status(500).json({ message: 'Failed to get PayPal subscription' });
       }
-
-      // Handle the event
-      switch (event.type) {
-        case 'invoice.payment_succeeded':
-          const invoice = event.data.object;
-          if (invoice.subscription) {
-            const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
-            const customer = await stripe.customers.retrieve(subscription.customer as string) as Stripe.Customer;
-            
-            if (customer.metadata?.userId) {
-              await storage.updateUserSubscription(parseInt(customer.metadata.userId), {
-                subscriptionStatus: 'active',
-                subscriptionExpiresAt: new Date((subscription as any).current_period_end * 1000)
-              });
-            }
-          }
-          break;
-
-        case 'invoice.payment_failed':
-          // Handle failed payment
-          break;
-
-        case 'customer.subscription.deleted':
-          const deletedSubscription = event.data.object;
-          const deletedCustomer = await stripe.customers.retrieve(deletedSubscription.customer as string) as Stripe.Customer;
-          
-          if (deletedCustomer.metadata?.userId) {
-            await storage.updateUserSubscription(parseInt(deletedCustomer.metadata.userId), {
-              subscriptionStatus: 'inactive',
-              subscriptionExpiresAt: new Date()
-            });
-          }
-          break;
-
-        default:
-          console.log(`Unhandled event type ${event.type}`);
+    });
+    
+    app.post('/api/payments/paypal/verify-subscription', authenticateToken, async (req: AuthRequest, res) => {
+      try {
+        const { subscriptionId } = req.body;
+        const subscription = await getSubscription(subscriptionId);
+        
+        if (subscription.status === 'ACTIVE') {
+          await storage.updateUser(req.user!.id, { 
+            paypalSubscriptionId: subscriptionId,
+            subscriptionStatus: 'active',
+            subscriptionExpiresAt: new Date(subscription.billing_info.next_billing_time),
+          });
+        }
+        
+        res.json({ message: 'Subscription verified successfully' });
+      } catch (error: any) {
+        console.error('PayPal verify subscription error:', error);
+        res.status(500).json({ message: 'Failed to verify PayPal subscription' });
       }
+    });
 
-      res.json({ received: true });
+    app.post('/api/payments/paypal/webhook', async (req, res) => {
+        // TODO: Implement PayPal webhook verification
+        const webhookEvent = req.body;
+        
+        // Process the event
+        switch (webhookEvent.event_type) {
+            case 'BILLING.SUBSCRIPTION.ACTIVATED':
+                // Update subscription status in the database
+                break;
+            case 'BILLING.SUBSCRIPTION.CANCELLED':
+                // Update subscription status in the database
+                break;
+            // ... handle other events
+            default:
+                console.log(`Unhandled PayPal webhook event type ${webhookEvent.event_type}`);
+        }
+        
+        res.status(200).send();
     });
   }
 
-  // ==================== ADMIN ROUTES ====================
+// ==================== ADMIN ROUTES ====================
 
   app.get('/api/admin/dashboard', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
     try {

@@ -129,6 +129,12 @@ export default function Navbar() {
                         Settings
                       </DropdownMenuItem>
                     </Link>
+                    <Link href="/subscription">
+                      <DropdownMenuItem data-testid="menu-subscription">
+                        <User className="mr-2 h-4 w-4" />
+                        Subscription
+                      </DropdownMenuItem>
+                    </Link>
                     <DropdownMenuItem onClick={logout} data-testid="menu-logout">
                       <LogOut className="mr-2 h-4 w-4" />
                       Logout
@@ -204,6 +210,13 @@ export default function Navbar() {
                           data-testid={`mobile-user-nav-settings`}
                         >
                           Settings
+                        </Link>
+                        <Link
+                          href="/subscription"
+                          className="block py-2 text-foreground hover:text-primary transition-colors"
+                          data-testid={`mobile-user-nav-subscription`}
+                        >
+                          Subscription
                         </Link>
                       </div>
                       <Button

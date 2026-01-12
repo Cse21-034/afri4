@@ -39,7 +39,7 @@ cd your-repo
 NODE_ENV=production
 DATABASE_URL=<your-postgres-url>
 JWT_SECRET=<your-jwt-secret-32-chars>
-STRIPE_SECRET_KEY=<your-stripe-secret-key>
+
 FRONTEND_URL=<your-vercel-domain>
 SESSION_SECRET=<your-session-secret>
 VERCEL_PROJECT_NAME=<your-project-name>
@@ -101,14 +101,12 @@ VITE_STRIPE_PUBLIC_KEY=<your-stripe-public-key>
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `JWT_SECRET` | JWT signing secret | Yes |
 | `FRONTEND_URL` | Frontend domain URL | Yes |
-| `STRIPE_SECRET_KEY` | Stripe secret key | Optional |
 | `SESSION_SECRET` | Session encryption key | Yes |
 
 ### Frontend (Vercel)
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `VITE_API_URL` | Backend API URL | Yes |
-| `VITE_STRIPE_PUBLIC_KEY` | Stripe publishable key | Optional |
 
 ## Local Development
 

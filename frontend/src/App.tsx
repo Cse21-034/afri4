@@ -18,6 +18,8 @@ import TruckingDashboard from "@/pages/trucking-dashboard";
 import ShippingDashboard from "@/pages/shipping-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import SecuritySettings from "@/pages/account/security";
+import SubscriptionPage from "@/pages/subscription";
+import SubscriptionSuccessPage from "@/pages/subscription-success";
 import Chat from "@/pages/chat";
 import Analytics from "@/pages/analytics";
 import Terms from "@/pages/terms";
@@ -47,6 +49,7 @@ function Router() {
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/check-your-email" component={CheckYourEmail} />
       <Route path="/resend-verification" component={ResendVerification} />
+      
       <Route path="/verify-2fa" component={Verify2FA} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
@@ -68,6 +71,8 @@ function Router() {
           <Route path="/chat/:jobId?" component={Chat} />
           <Route path="/analytics" component={Analytics} />
           <Route path="/account/security" component={SecuritySettings} />
+          <Route path="/subscription" component={SubscriptionPage} />
+          <Route path="/subscription/success" component={SubscriptionSuccessPage} />
           {(user.role === 'super_admin' || user.role === 'customer_support') && (
             <>
               <Route path="/admin" component={AdminDashboard} />

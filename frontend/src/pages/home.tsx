@@ -68,7 +68,7 @@ export default function Home() {
                   <Shield className="text-secondary h-8 w-8" />
                 </div>
                 <h3 className="font-semibold text-foreground mb-2">Secure Payments</h3>
-                <p className="text-muted-foreground text-sm">Stripe integration with multi-currency support</p>
+                <p className="text-muted-foreground text-sm">Secure payments with multi-currency support</p>
               </div>
               <div className="text-center" data-testid="feature-analytics">
                 <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -318,7 +318,7 @@ export default function AdminDashboard() {
                         <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5" />
                         <div>
                           <p className="font-medium text-red-800 text-sm">Payment Gateway Issue</p>
-                          <p className="text-xs text-red-600">Stripe API response time elevated (2.3s avg)</p>
+                          
                         </div>
                       </div>
                     </div>
