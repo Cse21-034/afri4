@@ -119,10 +119,12 @@ export default function Navbar() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" data-testid="user-menu">
-                    <DropdownMenuItem data-testid="menu-profile">
-                      <User className="mr-2 h-4 w-4" />
-                      Profile
-                    </DropdownMenuItem>
+                    <Link href="/profile">
+                      <DropdownMenuItem data-testid="menu-profile">
+                        <User className="mr-2 h-4 w-4" />
+                        Profile
+                      </DropdownMenuItem>
+                    </Link>
                     <Link href="/account/security">
                       <DropdownMenuItem data-testid="menu-settings">
                         <Settings className="mr-2 h-4 w-4" />

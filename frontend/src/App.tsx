@@ -17,6 +17,7 @@ import ResendVerification from "@/pages/resend-verification";
 import TruckingDashboard from "@/pages/trucking-dashboard";
 import ShippingDashboard from "@/pages/shipping-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
+import Profile from "@/pages/profile";
 import SecuritySettings from "@/pages/account/security";
 import SubscriptionPage from "@/pages/subscription";
 import SubscriptionSuccessPage from "@/pages/subscription-success";
@@ -68,6 +69,7 @@ function Router() {
               <AdminDashboard />
             )}
           </Route>
+          <Route path="/profile" component={Profile} />
           <Route path="/chat/:jobId?" component={Chat} />
           <Route path="/analytics" component={Analytics} />
           <Route path="/account/security" component={SecuritySettings} />

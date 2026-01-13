@@ -39,7 +39,35 @@ export default function Login() {
       const response = await apiRequest('POST', '/api/auth/login', data);
       
       if (!response.ok) {
-        throw response;
+        const errorData = await response.json();
+        
+        // Check if email is not verified
+        if (errorData.emailNotVerified) {
+          setLoginError(errorData.message);
+          return;
+        }
+        
+        // Check if 2FA is required
+        if (errorData.requires2FA) {
+          // Store credentials temporarily for 2FA verification
+          sessionStorage.setItem('2fa_email', data.email);
+          sessionStorage.setItem('2fa_password', data.password);
+          
+          toast({
+            title: "2FA Required",
+            description: errorData.message,
+          });
+          
+          navigate('/verify-2fa');
+          return;
+        }
+        
+        toast({
+          title: "Login Failed",
+          description: errorData.message || "Invalid credentials",
+          variant: "destructive",
+        });
+        return;
       }
 
       const result = await response.json();
@@ -69,24 +97,11 @@ export default function Login() {
       
       window.location.href = "/dashboard"; // Use full page reload to ensure auth state is updated
     } catch (error: any) {
-      try {
-        const errorData = await error.json();
-        if (errorData.emailNotVerified) {
-          setLoginError(errorData.message);
-        } else {
-          toast({
-            title: "Login Failed",
-            description: errorData.message || "Invalid credentials",
-            variant: "destructive",
-          });
-        }
-      } catch (e) {
-        toast({
-          title: "Login Failed",
-          description: "An unexpected error occurred. Please try again.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Login Failed",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

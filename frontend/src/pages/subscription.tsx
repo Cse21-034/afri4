@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
+import Navbar from "@/components/ui/navbar";
+import Footer from "@/components/ui/footer";
 
 // Make sure to call `loadStripe` outside of a component’s render to avoid
 // recreating the `Stripe` object on every render.
@@ -76,40 +78,48 @@ function SubscriptionPage() {
   }
 
   return (
-    <div className="p-4 md:p-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Subscription</CardTitle>
-          <CardDescription>
-            Manage your subscription plan.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {subscription && subscription.status === 'ACTIVE' ? (
-            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-                <div>
-                  <p className="font-medium text-green-800">Subscription is Active</p>
-                  <p className="text-sm text-gray-600">Plan: Trucking Company Monthly</p>
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
+      
+      <div className="flex-1 py-12 bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Subscription</CardTitle>
+              <CardDescription>
+                Manage your subscription plan.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {subscription && subscription.status === 'ACTIVE' ? (
+                <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                    <div>
+                      <p className="font-medium text-green-800">Subscription is Active</p>
+                      <p className="text-sm text-gray-600">Plan: Trucking Company Monthly</p>
+                    </div>
+                  </div>
+                  <Button variant="destructive">Cancel Subscription</Button>
                 </div>
-              </div>
-              <Button variant="destructive">Cancel Subscription</Button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <XCircle className="h-6 w-6 text-gray-500" />
-                 <div>
-                    <p className="font-medium text-gray-700">No active subscription.</p>
-                    <p className="text-sm text-gray-600">BWP 500/month</p>
+              ) : (
+                <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <XCircle className="h-6 w-6 text-gray-500" />
+                     <div>
+                        <p className="font-medium text-gray-700">No active subscription.</p>
+                        <p className="text-sm text-gray-600">BWP 500/month</p>
+                    </div>
+                  </div>
+                  <StripeSubscriptionButton />
                 </div>
-              </div>
-              <StripeSubscriptionButton />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      
+      <Footer />
     </div>
   );
 }
