@@ -8,7 +8,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
-              <img src="/loadxlogo.jpeg" alt="LoadX Africa" className="h-12 w-auto" />
+              <img src="/loadxlogo.jpeg" alt="LoadX Africa" className="h-20 w-auto" />
             </div>
             <p className="text-muted-foreground mb-4 max-w-md">
               Africa's premier freight matching platform connecting trucking companies and shipping entities across the continent.

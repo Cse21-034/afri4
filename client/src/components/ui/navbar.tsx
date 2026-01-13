@@ -34,7 +34,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" data-testid="logo-link">
             <div className="flex items-center space-x-2">
-              <img src="/loadxlogo.jpeg" alt="LoadX Africa" className="h-10 w-auto" />
+              <img src="/loadxlogo.jpeg" alt="LoadX Africa" className="h-16 w-auto" />
             </div>
           </Link>
 
