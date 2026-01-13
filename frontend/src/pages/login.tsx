@@ -39,34 +39,45 @@ export default function Login() {
       const response = await apiRequest('POST', '/api/auth/login', data);
       
       if (!response.ok) {
-        const errorData = await response.json();
-        
-        // Check if email is not verified
-        if (errorData.emailNotVerified) {
-          setLoginError(errorData.message);
-          return;
-        }
-        
-        // Check if 2FA is required
-        if (errorData.requires2FA) {
-          // Store credentials temporarily for 2FA verification
-          sessionStorage.setItem('2fa_email', data.email);
-          sessionStorage.setItem('2fa_password', data.password);
+        try {
+          const errorData = await response.json();
           
+          // Check if email is not verified
+          if (errorData.emailNotVerified) {
+            setLoginError(errorData.message);
+            // Store email for verification page
+            sessionStorage.setItem('verification_email', data.email);
+            return;
+          }
+          
+          // Check if 2FA is required
+          if (errorData.requires2FA) {
+            // Store credentials temporarily for 2FA verification
+            sessionStorage.setItem('2fa_email', data.email);
+            sessionStorage.setItem('2fa_password', data.password);
+            
+            toast({
+              title: "2FA Required",
+              description: errorData.message,
+            });
+            
+            navigate('/verify-2fa');
+            return;
+          }
+          
+          // Handle other errors
           toast({
-            title: "2FA Required",
-            description: errorData.message,
+            title: "Login Failed",
+            description: errorData.message || "Invalid credentials",
+            variant: "destructive",
           });
-          
-          navigate('/verify-2fa');
-          return;
+        } catch (parseError) {
+          toast({
+            title: "Login Failed",
+            description: "Unable to process login. Please try again.",
+            variant: "destructive",
+          });
         }
-        
-        toast({
-          title: "Login Failed",
-          description: errorData.message || "Invalid credentials",
-          variant: "destructive",
-        });
         return;
       }
 
@@ -97,9 +108,10 @@ export default function Login() {
       
       window.location.href = "/dashboard"; // Use full page reload to ensure auth state is updated
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login Failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: "An unexpected error occurred. Please check your internet connection and try again.",
         variant: "destructive",
       });
     } finally {
@@ -128,13 +140,27 @@ export default function Login() {
             
             <CardContent>
               {loginError && (
-                <div className="bg-destructive/10 border border-destructive/50 text-destructive p-3 rounded-md mb-6 flex items-start space-x-3">
-                  <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    {loginError}{" "}
-                    <Link href="/resend-verification" className="font-semibold hover:underline">
-                      Resend verification email
-                    </Link>
+                <div className="bg-amber-50 border-2 border-amber-300 text-amber-900 p-4 rounded-lg mb-6 flex items-start space-x-3">
+                  <AlertCircle className="h-6 w-6 flex-shrink-0 mt-0.5 text-amber-600" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm mb-3">Email Verification Required</p>
+                    <p className="text-sm mb-4">
+                      {loginError}
+                    </p>
+                    <div className="flex gap-3">
+                      <Link href="/resend-verification" className="inline-block">
+                        <button className="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-md text-sm transition-colors">
+                          Verify Your Email
+                        </button>
+                      </Link>
+                      <button 
+                        type="button"
+                        onClick={() => setLoginError(null)}
+                        className="text-amber-700 hover:text-amber-800 font-semibold text-sm underline"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
