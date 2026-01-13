@@ -53,7 +53,7 @@ export default function Terms() {
 
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Subscriptions and Payments</h2>
               <ul className="list-disc pl-6 mb-4 text-foreground">
-                <li>Trucking Companies: BWP 500/month or BWP 4,499/year (via PayPal or bank transfer). Access to job postings requires an active subscription. Invoices generated (VAT not applied per current thresholds).</li>
+                <li>Trucking Companies: BWP 500/month or BWP 4,499/year (via Stripe or bank transfer). Access to job postings requires an active subscription. Invoices generated (VAT not applied per current thresholds).</li>
                 <li>Shipping Entities: Free to post jobs.</li>
                 <li>Auto-renewal optional; cancel anytime via settings. Annual plan refunds may be pro-rated at our discretion.</li>
                 <li>Non-payment results in suspension of job access.</li>

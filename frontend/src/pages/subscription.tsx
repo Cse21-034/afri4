@@ -5,19 +5,31 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 
-// This is the PayPal button component
-const PayPalButton = ({ onSubscriptionCreated }) => {
+// Make sure to call `loadStripe` outside of a component’s render to avoid
+// recreating the `Stripe` object on every render.
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+const StripeSubscriptionButton = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   const createSubscription = async () => {
     setLoading(true);
     try {
-      const response = await apiRequest('POST', '/api/payments/paypal/create-subscription');
+      const response = await apiRequest('POST', '/api/payments/stripe/create-checkout-session');
       if (!response.ok) throw new Error('Failed to create subscription.');
       const data = await response.json();
-      window.location.href = data.approvalUrl;
+      
+      const stripe = await stripePromise;
+      if (stripe) {
+        const { error } = await stripe.redirectToCheckout({ sessionId: data.sessionId });
+        if (error) {
+          throw new Error(error.message);
+        }
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -32,12 +44,12 @@ const PayPalButton = ({ onSubscriptionCreated }) => {
   return (
     <Button onClick={createSubscription} disabled={loading} className="w-full">
       {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-      Subscribe with PayPal
+      Subscribe with Stripe
     </Button>
   );
 };
 
-export default function SubscriptionPage() {
+function SubscriptionPage() {
   const { user, isLoading } = useAuth();
   const { toast } = useToast();
   const [subscription, setSubscription] = useState(null);
@@ -45,19 +57,11 @@ export default function SubscriptionPage() {
 
   useEffect(() => {
     const fetchSubscription = async () => {
-      if (user?.paypalSubscriptionId) {
-        try {
-          const response = await apiRequest('GET', `/api/payments/paypal/subscription/${user.paypalSubscriptionId}`);
-          if (!response.ok) throw new Error('Failed to fetch subscription.');
-          const data = await response.json();
-          setSubscription(data.subscription);
-        } catch (error) {
-          toast({
-            title: "Error",
-            description: error.message,
-            variant: "destructive",
-          });
-        }
+      // TODO: Implement a way to get subscription status from your backend
+      // For now, we'll just use the user's subscription status
+      if (user?.subscriptionStatus === 'active') {
+        // You might want to fetch more subscription details from your backend
+        setSubscription({ status: 'ACTIVE' });
       }
       setIsSubLoading(false);
     };
@@ -101,13 +105,19 @@ export default function SubscriptionPage() {
                     <p className="text-sm text-gray-600">BWP 500/month</p>
                 </div>
               </div>
-              <PayPalButton onSubscriptionCreated={() => {
-                // refetch subscription status
-              }} />
+              <StripeSubscriptionButton />
             </div>
           )}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SubscriptionPageWrapper() {
+  return (
+    <Elements stripe={stripePromise}>
+      <SubscriptionPage />
+    </Elements>
   );
 }

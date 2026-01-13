@@ -27,7 +27,7 @@ export default function Privacy() {
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Data We Collect</h2>
               <ul className="list-disc pl-6 mb-4 text-foreground space-y-2">
                 <li><strong>Registration Data:</strong> Names, emails, phone numbers, addresses, business registration numbers, fleet details, documents (Trucking Companies).</li>
-                <li><strong>Payment Data:</strong> Processed via PayPal or bank transfers; we do not store full card numbers.</li>
+                <li><strong>Payment Data:</strong> Processed via Stripe or bank transfers; we do not store full card numbers.</li>
                 <li><strong>Usage Data:</strong> Job postings, chat logs, ratings, dispute records, invoices, feedback, notifications, device info, IP, login times, preferences.</li>
                 <li><strong>Security Data:</strong> 2FA configuration, recovery codes (hashed), audit logs of key actions.</li>
                 <li><strong>Support Data:</strong> Messages and attachments sent via support or disputes.</li>
@@ -48,7 +48,7 @@ export default function Privacy() {
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Sharing</h2>
               <ul className="list-disc pl-6 mb-4 text-foreground space-y-2">
                 <li><strong>Between Users:</strong> job-related contact and details necessary to coordinate.</li>
-                <li><strong>Service Providers:</strong> PayPal, email delivery, hosting/monitoring vendors under confidentiality.</li>
+                <li><strong>Service Providers:</strong> Stripe, email delivery, hosting/monitoring vendors under confidentiality.</li>
                 <li><strong>Legal Compliance:</strong> Where required by law or court order.</li>
               </ul>
               <p className="mb-4 text-foreground">

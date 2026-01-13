@@ -94,7 +94,9 @@ export const users = pgTable('users', {
   // Subscription fields
   subscriptionStatus: subscriptionStatusEnum('subscription_status').notNull().default('inactive'),
   subscriptionExpiresAt: timestamp('subscription_expires_at'),
-  paypalSubscriptionId: varchar('paypal_subscription_id', { length: 255 }),
+  stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
+  stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
+  stripeSubscriptionStatus: varchar('stripe_subscription_status', { length: 50 }),
   
   // Security fields
   emailVerified: boolean('email_verified').notNull().default(false),

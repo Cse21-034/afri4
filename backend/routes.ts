@@ -9,7 +9,7 @@ import crypto from 'crypto';
 import { storage } from "./storage.js";
 import { WebSocketService } from "./services/services/websocket.js";
 import { emailService } from "./services/services/email.js";
-import { createSubscription, getSubscription } from "./services/services/paypal.js";
+import { stripeService } from "./services/services/stripe.js";
 import { authenticateToken, requireRole, requireSubscription, AuthRequest } from "./middleware/middleware/auth.js";
 import { 
   loginSchema, 
@@ -891,85 +891,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ==================== PAYMENT ROUTES (PayPal integration) ====================
+// ==================== PAYMENT ROUTES (Stripe integration) ====================
 
-  const PAYPAL_PLAN_ID = process.env.PAYPAL_PLAN_ID;
+  app.post('/api/payments/stripe/create-checkout-session', authenticateToken, requireRole([UserRole.TRUCKING_COMPANY]), async (req: AuthRequest, res) => {
+    try {
+      const user = req.user!;
+      // @ts-ignore
+      const session = await stripeService.createCheckoutSession(user.id, user.email, process.env.STRIPE_PRICE_ID);
+      res.json({ sessionId: session.id });
+    } catch (error: any) {
+      console.error('Stripe checkout session error:', error);
+      res.status(500).json({ message: 'Failed to create Stripe checkout session' });
+    }
+  });
 
-  if (PAYPAL_PLAN_ID) {
-    app.post('/api/payments/paypal/create-subscription', authenticateToken, requireRole([UserRole.TRUCKING_COMPANY]), async (req: AuthRequest, res) => {
-      try {
-        const user = req.user!;
-        const result = await createSubscription(PAYPAL_PLAN_ID, user.email);
-        
-        // Find the approval link
-        const approvalLink = result.links.find(link => link.rel === 'approve');
-        
-        if (approvalLink) {
-          res.json({ approvalUrl: approvalLink.href });
-        } else {
-          res.status(500).json({ message: 'Could not get PayPal approval URL' });
-        }
-      } catch (error: any) {
-        console.error('PayPal subscription creation error:', error);
-        res.status(500).json({ message: 'Failed to create PayPal subscription' });
-      }
-    });
+  app.post('/api/payments/stripe/verify-session', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { sessionId } = req.body;
+      // @ts-ignore
+      const session = await stripeService.retrieveCheckoutSession(sessionId);
 
-    app.get('/api/payments/paypal/subscription/:subscriptionId', authenticateToken, async (req: AuthRequest, res) => {
-      try {
-        const { subscriptionId } = req.params;
-        const subscription = await getSubscription(subscriptionId);
+      if (session.payment_status === 'paid') {
+        // @ts-ignore
+        const subscription = await stripeService.getSubscription(session.subscription);
         
-        // You can update your database with the subscription status here
-        // For example, if subscription.status === 'ACTIVE'
-        
-        res.json({ subscription });
-      } catch (error: any) {
-        console.error('PayPal get subscription error:', error);
-        res.status(500).json({ message: 'Failed to get PayPal subscription' });
-      }
-    });
-    
-    app.post('/api/payments/paypal/verify-subscription', authenticateToken, async (req: AuthRequest, res) => {
-      try {
-        const { subscriptionId } = req.body;
-        const subscription = await getSubscription(subscriptionId);
-        
-        if (subscription.status === 'ACTIVE') {
-          await storage.updateUser(req.user!.id, { 
-            paypalSubscriptionId: subscriptionId,
-            subscriptionStatus: 'active',
-            subscriptionExpiresAt: new Date(subscription.billing_info.next_billing_time),
-          });
-        }
-        
+        await storage.updateUser(req.user!.id, { 
+          stripeCustomerId: session.customer as string,
+          stripeSubscriptionId: session.subscription as string,
+          stripeSubscriptionStatus: subscription.status,
+          subscriptionStatus: 'active',
+          subscriptionExpiresAt: new Date(subscription.current_period_end * 1000),
+        });
+
         res.json({ message: 'Subscription verified successfully' });
-      } catch (error: any) {
-        console.error('PayPal verify subscription error:', error);
-        res.status(500).json({ message: 'Failed to verify PayPal subscription' });
+      } else {
+        res.status(400).json({ message: 'Subscription payment not successful' });
       }
-    });
+    } catch (error: any) {
+      console.error('Stripe verify session error:', error);
+      res.status(500).json({ message: 'Failed to verify Stripe session' });
+    }
+  });
 
-    app.post('/api/payments/paypal/webhook', async (req, res) => {
-        // TODO: Implement PayPal webhook verification
-        const webhookEvent = req.body;
-        
-        // Process the event
-        switch (webhookEvent.event_type) {
-            case 'BILLING.SUBSCRIPTION.ACTIVATED':
-                // Update subscription status in the database
-                break;
-            case 'BILLING.SUBSCRIPTION.CANCELLED':
-                // Update subscription status in the database
-                break;
-            // ... handle other events
-            default:
-                console.log(`Unhandled PayPal webhook event type ${webhookEvent.event_type}`);
-        }
-        
-        res.status(200).send();
-    });
-  }
+  app.post('/api/payments/stripe/webhook', async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    try {
+      // @ts-ignore
+      event = stripeService.constructWebhookEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    } catch (err: any) {
+      console.error('Stripe webhook signature error:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Handle the event
+    switch (event.type) {
+      case 'checkout.session.completed':
+        // Payment is successful and the subscription is created.
+        // You should handle the logic to provision access to your service.
+        break;
+      case 'invoice.paid':
+        // Continue to provision the subscription as payments continue to be made.
+        break;
+      case 'invoice.payment_failed':
+        // The payment failed or the customer does not have a valid payment method.
+        // The subscription becomes past_due. Notify the customer and send them to the
+        // customer portal to update their payment information.
+        break;
+      default:
+        console.log(`Unhandled Stripe webhook event type ${event.type}`);
+    }
+
+    res.status(200).send();
+  });
 
 // ==================== ADMIN ROUTES ====================
 

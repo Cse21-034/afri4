@@ -14,13 +14,13 @@ export default function SubscriptionSuccessPage() {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const subscriptionId = urlParams.get('subscription_id');
+    const sessionId = urlParams.get('session_id');
 
-    if (subscriptionId) {
+    if (sessionId) {
       const verifySubscription = async () => {
         try {
-          // You might want to send this to your backend to verify and update the user's subscription status
-          await apiRequest('POST', `/api/payments/paypal/verify-subscription`, { subscriptionId });
+          // Send this to your backend to verify and update the user's subscription status
+          await apiRequest('POST', `/api/payments/stripe/verify-session`, { sessionId });
           
           setStatus('Subscription activated successfully!');
           
@@ -28,7 +28,7 @@ export default function SubscriptionSuccessPage() {
           await queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
 
           // Redirect to dashboard after a delay
-          setTimeout(() => navigate('/dashboard'), 3000);
+          setTimeout(() => navigate('/trucking-dashboard'), 3000);
 
         } catch (error) {
           setStatus('Failed to verify subscription.');
@@ -41,7 +41,7 @@ export default function SubscriptionSuccessPage() {
       };
       verifySubscription();
     } else {
-      setStatus('No subscription ID found.');
+      setStatus('No session ID found.');
     }
   }, [navigate, toast, queryClient]);
 
