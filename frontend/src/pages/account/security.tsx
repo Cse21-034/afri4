@@ -144,8 +144,8 @@ export default function SecuritySettings() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
       {/* Disable 2FA Dialog */}
       <Dialog open={showDisableDialog} onOpenChange={setShowDisableDialog}>
@@ -203,8 +203,6 @@ export default function SecuritySettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-        </CardContent>
-      </Card>
         </div>
       </div>
       
