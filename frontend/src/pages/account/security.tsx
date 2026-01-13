@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, ShieldOff, Copy, Save } from "lucide-react";
+import Navbar from "@/components/ui/navbar";
+import Footer from "@/components/ui/footer";
 import {
   Dialog,
   DialogContent,
@@ -100,15 +102,19 @@ export default function SecuritySettings() {
   }
 
   return (
-    <div className="p-4 md:p-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Two-Factor Authentication (2FA)</CardTitle>
-          <CardDescription>
-            Add an extra layer of security to your account.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
+      
+      <div className="flex-1 py-12 bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Two-Factor Authentication (2FA)</CardTitle>
+              <CardDescription>
+                Add an extra layer of security to your account.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
           {user?.twoFactorEnabled ? (
             <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center space-x-3">
@@ -197,6 +203,12 @@ export default function SecuritySettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </CardContent>
+      </Card>
+        </div>
+      </div>
+      
+      <Footer />
     </div>
   );
 }
