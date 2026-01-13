@@ -1,0 +1,16 @@
+<svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" width="400" height="178">
+  <!-- Orange Box with LoadX Icon -->
+  <rect x="50" y="80" width="160" height="160" rx="15" fill="#FF6B35"/>
+  
+  <!-- Left white line in box -->
+  <rect x="90" y="120" width="12" height="80" rx="6" fill="white"/>
+  
+  <!-- Right white line in box (offset) -->
+  <rect x="130" y="140" width="12" height="60" rx="6" fill="white"/>
+  
+  <!-- LoadX Text -->
+  <text x="250" y="210" font-family="Arial, sans-serif" font-size="120" font-weight="700" fill="#1A1A1A" letter-spacing="-2">LoadX</text>
+  
+  <!-- AFRICA Text -->
+  <text x="250" y="300" font-family="Arial, sans-serif" font-size="80" font-weight="700" fill="#1A1A1A" letter-spacing="3">AFRICA</text>
+</svg>

@@ -33,14 +33,8 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" data-testid="logo-link">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-accent to-orange-400 rounded-lg flex items-center justify-center">
-                <Truck className="text-white text-lg" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-foreground">LoadLink</h1>
-                <p className="text-xs text-accent font-semibold">AFRICA</p>
-              </div>
+            <div className="flex items-center space-x-2">
+              <img src="/loadxlogo.jpeg" alt="LoadX Africa" className="h-10 w-auto" />
             </div>
           </Link>
 
