@@ -10,9 +10,10 @@ import { loadStripe } from '@stripe/stripe-js';
 import Navbar from "@/components/ui/navbar";
 import Footer from "@/components/ui/footer";
 
-// Make sure to call `loadStripe` outside of a component’s render to avoid
+// Make sure to call `loadStripe` outside of a component's render to avoid
 // recreating the `Stripe` object on every render.
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 const StripeSubscriptionButton = () => {
   const [loading, setLoading] = useState(false);
@@ -125,6 +126,34 @@ function SubscriptionPage() {
 }
 
 export default function SubscriptionPageWrapper() {
+  if (!stripeKey) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar />
+        <div className="flex-1 py-12 bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
+          <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Subscription</CardTitle>
+                <CardDescription>
+                  Manage your subscription plan.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-amber-800">
+                    Stripe payment system is currently unavailable. Please try again later.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <Elements stripe={stripePromise}>
       <SubscriptionPage />

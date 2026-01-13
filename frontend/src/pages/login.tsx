@@ -38,49 +38,6 @@ export default function Login() {
     try {
       const response = await apiRequest('POST', '/api/auth/login', data);
       
-      if (!response.ok) {
-        try {
-          const errorData = await response.json();
-          
-          // Check if email is not verified
-          if (errorData.emailNotVerified) {
-            setLoginError(errorData.message);
-            // Store email for verification page
-            sessionStorage.setItem('verification_email', data.email);
-            return;
-          }
-          
-          // Check if 2FA is required
-          if (errorData.requires2FA) {
-            // Store credentials temporarily for 2FA verification
-            sessionStorage.setItem('2fa_email', data.email);
-            sessionStorage.setItem('2fa_password', data.password);
-            
-            toast({
-              title: "2FA Required",
-              description: errorData.message,
-            });
-            
-            navigate('/verify-2fa');
-            return;
-          }
-          
-          // Handle other errors
-          toast({
-            title: "Login Failed",
-            description: errorData.message || "Invalid credentials",
-            variant: "destructive",
-          });
-        } catch (parseError) {
-          toast({
-            title: "Login Failed",
-            description: "Unable to process login. Please try again.",
-            variant: "destructive",
-          });
-        }
-        return;
-      }
-
       const result = await response.json();
       
       // Check if 2FA is required
@@ -109,6 +66,38 @@ export default function Login() {
       window.location.href = "/dashboard"; // Use full page reload to ensure auth state is updated
     } catch (error: any) {
       console.error('Login error:', error);
+      
+      // Try to parse the error message
+      try {
+        // Extract error message from the error string (format: "401: {...}")
+        const errorMatch = error.message.match(/^\d+: (.+)$/);
+        if (errorMatch) {
+          const errorText = errorMatch[1];
+          const errorData = JSON.parse(errorText);
+          
+          // Check if email is not verified
+          if (errorData.emailNotVerified) {
+            setLoginError(errorData.message);
+            // Store email for verification page
+            sessionStorage.setItem('verification_email', data.email);
+            return;
+          }
+          
+          // Handle other specific errors
+          if (errorData.message) {
+            toast({
+              title: "Login Failed",
+              description: errorData.message,
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+      } catch (parseError) {
+        // If parsing fails, continue to generic error
+      }
+      
+      // Generic error fallback
       toast({
         title: "Login Failed",
         description: "An unexpected error occurred. Please check your internet connection and try again.",
