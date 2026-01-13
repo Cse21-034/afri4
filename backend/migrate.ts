@@ -93,38 +93,45 @@ async function runMigrations() {
 
     console.log('[MIGRATION] Enums created successfully');
 
-    // Create users table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        role user_role NOT NULL,
-        email VARCHAR(255) NOT NULL UNIQUE,
-        password VARCHAR(255) NOT NULL,
-        company_name VARCHAR(255),
-        contact_person_name VARCHAR(255) NOT NULL,
-        phone_number VARCHAR(50) NOT NULL,
-        physical_address TEXT NOT NULL,
-        country country NOT NULL DEFAULT 'BWA',
-        business_registration_number VARCHAR(100),
-        fleet_size INTEGER,
-        cargo_types JSON,
-        documents JSON,
-        subscription_status subscription_status NOT NULL DEFAULT 'inactive',
-        subscription_expires_at TIMESTAMP,
-        stripe_customer_id VARCHAR(255),
-        stripe_subscription_id VARCHAR(255),
-        email_verified BOOLEAN NOT NULL DEFAULT false,
-        email_verification_token VARCHAR(255),
-        password_reset_token VARCHAR(255),
-        password_reset_expires TIMESTAMP,
-        login_attempts INTEGER NOT NULL DEFAULT 0,
-        account_locked BOOLEAN NOT NULL DEFAULT false,
-        lock_expires TIMESTAMP,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      );
-    `);
-
+    // Inside backend/migrate.ts, update the users table creation:
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    role user_role NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    company_name VARCHAR(255),
+    contact_person_name VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(50) NOT NULL,
+    physical_address TEXT NOT NULL,
+    country country NOT NULL DEFAULT 'BWA',
+    business_registration_number VARCHAR(100),
+    fleet_size INTEGER,
+    cargo_types JSON,
+    documents JSON,
+    verified BOOLEAN NOT NULL DEFAULT false, -- Added missing field
+    subscription_status subscription_status NOT NULL DEFAULT 'inactive',
+    subscription_expires_at TIMESTAMP,
+    stripe_customer_id VARCHAR(255),
+    stripe_subscription_id VARCHAR(255),
+    stripe_subscription_status VARCHAR(50), -- Added missing field causing the error
+    email_verified BOOLEAN NOT NULL DEFAULT false,
+    email_verification_token VARCHAR(255),
+    password_reset_token VARCHAR(255),
+    password_reset_expires TIMESTAMP,
+    login_attempts INTEGER NOT NULL DEFAULT 0,
+    account_locked BOOLEAN NOT NULL DEFAULT false,
+    lock_expires TIMESTAMP,
+    -- Added missing 2FA fields
+    two_factor_enabled BOOLEAN NOT NULL DEFAULT false,
+    two_factor_secret VARCHAR(255),
+    two_factor_code VARCHAR(10),
+    two_factor_expires TIMESTAMP,
+    backup_codes JSON,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+`);
     console.log('[MIGRATION] Users table created');
 
     // Create jobs table
