@@ -24,12 +24,11 @@
     "declaration": false,
     "rootDir": "..",
     "paths": {
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["./shared/*"]
     }
   },
   "include": [
-    "**/*.ts",
-    "../shared/**/*.ts"
+    "**/*.ts"
   ],
   "exclude": [
     "node_modules",
