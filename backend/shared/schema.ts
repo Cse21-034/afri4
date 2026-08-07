@@ -5,10 +5,10 @@ import { sql } from "drizzle-orm";
 
 // Enums
 export const userRoleEnum = pgEnum('user_role', ['trucking_company', 'shipping_entity', 'super_admin', 'customer_support']);
-export const cargoTypeEnum = pgEnum('cargo_type', ['general', 'refrigerated', 'hazardous', 'bulk', 'containers']);
+export const cargoTypeEnum = pgEnum('cargo_type', ['general', 'refrigerated', 'hazardous', 'bulk', 'containers', 'livestock', 'agricultural', 'mining', 'construction', 'vehicles', 'electronics', 'textiles', 'pharmaceuticals', 'perishables', 'oversized', 'liquids']);
 export const industryEnum = pgEnum('industry', ['agriculture', 'manufacturing', 'retail', 'mining', 'logistics', 'construction']);
 export const jobStatusEnum = pgEnum('job_status', ['available', 'taken', 'completed']);
-export const countryEnum = pgEnum('country', ['BWA', 'ZAF', 'NAM', 'ZWE', 'ZMB']);
+export const countryEnum = pgEnum('country', ['AGO', 'BWA', 'COM', 'COD', 'SWZ', 'LSO', 'MDG', 'MWI', 'MUS', 'MOZ', 'NAM', 'SYC', 'ZAF', 'TZA', 'ZMB', 'ZWE']);
 export const subscriptionStatusEnum = pgEnum('subscription_status', ['active', 'inactive', 'trial']);
 export const notificationTypeEnum = pgEnum('notification_type', ['job_match', 'job_taken', 'job_completed', 'payment_confirmed', 'subscription_expiring']);
 export const disputeStatusEnum = pgEnum('dispute_status', ['open', 'in_review', 'resolved', 'closed']);
@@ -29,7 +29,18 @@ export const CargoType = {
   REFRIGERATED: 'refrigerated',
   HAZARDOUS: 'hazardous',
   BULK: 'bulk',
-  CONTAINERS: 'containers'
+  CONTAINERS: 'containers',
+  LIVESTOCK: 'livestock',
+  AGRICULTURAL: 'agricultural',
+  MINING: 'mining',
+  CONSTRUCTION: 'construction',
+  VEHICLES: 'vehicles',
+  ELECTRONICS: 'electronics',
+  TEXTILES: 'textiles',
+  PHARMACEUTICALS: 'pharmaceuticals',
+  PERISHABLES: 'perishables',
+  OVERSIZED: 'oversized',
+  LIQUIDS: 'liquids'
 } as const;
 
 export type CargoTypeType = typeof CargoType[keyof typeof CargoType];
@@ -57,11 +68,22 @@ export type JobStatusType = typeof JobStatus[keyof typeof JobStatus];
 
 // Countries
 export const Country = {
+  ANGOLA: 'AGO',
   BOTSWANA: 'BWA',
-  SOUTH_AFRICA: 'ZAF',
+  COMOROS: 'COM',
+  DR_CONGO: 'COD',
+  ESWATINI: 'SWZ',
+  LESOTHO: 'LSO',
+  MADAGASCAR: 'MDG',
+  MALAWI: 'MWI',
+  MAURITIUS: 'MUS',
+  MOZAMBIQUE: 'MOZ',
   NAMIBIA: 'NAM',
-  ZIMBABWE: 'ZWE',
-  ZAMBIA: 'ZMB'
+  SEYCHELLES: 'SYC',
+  SOUTH_AFRICA: 'ZAF',
+  TANZANIA: 'TZA',
+  ZAMBIA: 'ZMB',
+  ZIMBABWE: 'ZWE'
 } as const;
 
 export type CountryType = typeof Country[keyof typeof Country];
@@ -261,8 +283,8 @@ export const registerTruckingSchema = z.object({
   physicalAddress: z.string().min(1),
   businessRegistrationNumber: z.string().min(1),
   fleetSize: z.number().min(1),
-  cargoTypes: z.array(z.enum([CargoType.GENERAL, CargoType.REFRIGERATED, CargoType.HAZARDOUS, CargoType.BULK, CargoType.CONTAINERS])).min(1),
-  country: z.enum([Country.BOTSWANA, Country.SOUTH_AFRICA, Country.NAMIBIA, Country.ZIMBABWE, Country.ZAMBIA]).default(Country.BOTSWANA)
+  cargoTypes: z.array(z.enum(Object.values(CargoType) as [string, ...string[]])).min(1),
+  country: z.enum(Object.values(Country) as [string, ...string[]]).default(Country.BOTSWANA)
 });
 
 export const registerShippingSchema = z.object({
@@ -273,7 +295,7 @@ export const registerShippingSchema = z.object({
   phoneNumber: z.string().min(1),
   physicalAddress: z.string().min(1),
   businessRegistrationNumber: z.string().optional(),
-  country: z.enum([Country.BOTSWANA, Country.SOUTH_AFRICA, Country.NAMIBIA, Country.ZIMBABWE, Country.ZAMBIA]).default(Country.BOTSWANA)
+  country: z.enum(Object.values(Country) as [string, ...string[]]).default(Country.BOTSWANA)
 });
 
 // Enhanced authentication schemas
