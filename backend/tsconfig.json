@@ -22,10 +22,9 @@
     "outDir": "./dist",
     "sourceMap": true,
     "declaration": false,
-    "baseUrl": "..",
     "rootDir": "..",
     "paths": {
-      "@shared/*": ["shared/*"]
+      "@shared/*": ["../shared/*"]
     }
   },
   "include": [
