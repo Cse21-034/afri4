@@ -67,6 +67,17 @@ export default function Home() {
               </div>
             )}
 
+            {/* Hero image: photo by Tom Jackson on Unsplash (images.unsplash.com/photo-1720811559395-3ed8d1b16649), free Unsplash License */}
+            <div className="mt-16 max-w-4xl mx-auto">
+              <img
+                src="https://images.unsplash.com/photo-1720811559395-3ed8d1b16649?fm=jpg&q=80&w=1920&auto=format&fit=crop"
+                alt="A semi truck on the open road, representing freight moving across Botswana and the region"
+                className="w-full h-64 md:h-96 object-cover rounded-2xl shadow-lg"
+                loading="eager"
+                data-testid="hero-image"
+              />
+            </div>
+
             {/* Features Grid */}
             <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-3xl mx-auto">
               <div className="text-center" data-testid="feature-realtime">
@@ -142,8 +153,49 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Photo Showcase Section */}
+      <section className="py-20 bg-muted/30" data-testid="showcase-section">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Photo by CHUTTERSNAP on Unsplash (images.unsplash.com/photo-1494412552100-42e4e7a74ec6), free Unsplash License */}
+            <div className="relative rounded-xl overflow-hidden shadow-md group" data-testid="showcase-image-containers">
+              <img
+                src="https://images.unsplash.com/photo-1494412552100-42e4e7a74ec6?fm=jpg&q=80&w=1200&auto=format&fit=crop"
+                alt="Shipping containers organized at a freight yard"
+                className="w-full h-56 object-cover transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-transparent" />
+              <p className="absolute bottom-3 left-4 text-white font-medium text-sm">Cargo, ready to move</p>
+            </div>
+            {/* Photo by Snap Wander on Unsplash (images.unsplash.com/photo-1783428673235-77dafc15eb59), free Unsplash License */}
+            <div className="relative rounded-xl overflow-hidden shadow-md group" data-testid="showcase-image-truck">
+              <img
+                src="https://images.unsplash.com/photo-1783428673235-77dafc15eb59?fm=jpg&q=80&w=1200&auto=format&fit=crop"
+                alt="A semi-truck parked and ready for the road"
+                className="w-full h-56 object-cover transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-transparent" />
+              <p className="absolute bottom-3 left-4 text-white font-medium text-sm">Verified trucks, ready to haul</p>
+            </div>
+            {/* Photo by Kseniia Ilinykh on Unsplash (images.unsplash.com/photo-1740914994657-f1cdffdc418e), free Unsplash License */}
+            <div className="relative rounded-xl overflow-hidden shadow-md group" data-testid="showcase-image-warehouse">
+              <img
+                src="https://images.unsplash.com/photo-1740914994657-f1cdffdc418e?fm=jpg&q=80&w=1200&auto=format&fit=crop"
+                alt="A forklift moving cargo in a warehouse"
+                className="w-full h-56 object-cover transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-transparent" />
+              <p className="absolute bottom-3 left-4 text-white font-medium text-sm">Loading, tracked from post to delivery</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */}
-      <section className="py-20 bg-muted/30" data-testid="features-section">
+      <section className="py-20" data-testid="features-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Why Choose LoadX Africa?</h2>
