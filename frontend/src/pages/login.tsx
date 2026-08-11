@@ -120,7 +120,7 @@ export default function Login() {
                 <Truck className="text-white text-2xl" />
               </div>
               <CardTitle className="text-2xl font-bold" data-testid="login-title">
-                Sign In to LoadLink Africa
+                Sign In to LoadX Africa
               </CardTitle>
               <p className="text-muted-foreground">
                 Access your freight matching dashboard

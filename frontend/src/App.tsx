@@ -27,6 +27,8 @@ import Terms from "@/pages/terms";
 import Privacy from "@/pages/privacy";
 import FAQ from "@/pages/faq";
 import Resources from "@/pages/resources";
+import GaboroneJohannesburg from "@/pages/corridors/gaborone-johannesburg";
+import GaboroneFrancistown from "@/pages/corridors/gaborone-francistown";
 
 function Router() {
   const { user, isLoading } = useAuth();
@@ -56,6 +58,8 @@ function Router() {
       <Route path="/privacy" component={Privacy} />
       <Route path="/faq" component={FAQ} />
       <Route path="/resources" component={Resources} />
+      <Route path="/corridors/gaborone-johannesburg" component={GaboroneJohannesburg} />
+      <Route path="/corridors/gaborone-francistown" component={GaboroneFrancistown} />
       
       {/* Protected routes */}
       {user && (

@@ -422,7 +422,7 @@ export default function ShippingDashboard() {
                             Insurance Required
                           </Label>
                           <span className="text-xs text-muted-foreground ml-2">
-                            (LoadLink Africa does not provide insurance. You must arrange coverage directly with external providers.)
+                            (LoadX Africa does not provide insurance. You must arrange coverage directly with external providers.)
                           </span>
                         </div>
 

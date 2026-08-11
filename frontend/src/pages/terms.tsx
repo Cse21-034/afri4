@@ -20,7 +20,7 @@ export default function Terms() {
               </p>
 
               <p className="mb-6 text-foreground">
-                Welcome to LoadLink Africa (the "Platform"), accessible at loadlink.africa, operated by LoadLink Africa (Pty) Ltd, 
+                Welcome to LoadX Africa (the "Platform"), accessible at loadxafrica.com, operated by LoadX Africa (Pty) Ltd,
                 a company registered in Botswana. By accessing or using the Platform, you ("User," including Trucking Companies and 
                 Shipping Entities) agree to be bound by these Terms and Conditions ("Terms"). If you do not agree, do not use the 
                 Platform. These Terms are governed by the laws of Botswana.
@@ -28,7 +28,7 @@ export default function Terms() {
 
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Platform Purpose</h2>
               <p className="mb-4 text-foreground">
-                LoadLink Africa is a freight-matching platform connecting Trucking Companies (carriers) with Shipping Entities 
+                LoadX Africa is a freight-matching platform connecting Trucking Companies (carriers) with Shipping Entities
                 (shippers, including companies, entities, or individuals). We provide tools for job postings, communication, 
                 analytics, ratings, dispute ticketing, invoicing, feedback, account recovery, 2FA, and audit logging, but do not 
                 participate in or control transactions, deliveries, or agreements between Users, and do not provide insurance.
@@ -48,7 +48,7 @@ export default function Terms() {
                 <li>Trucking Companies: Up to 3 simultaneous logins; exceeding may log out the oldest session.</li>
                 <li>Optional 2FA available; we may require 2FA for high-risk activity.</li>
                 <li>We maintain audit logs of key actions for security and compliance.</li>
-                <li>Users are responsible for passwords and all account activity; notify support@loadlink.africa of any unauthorized access.</li>
+                <li>Users are responsible for passwords and all account activity; notify support@loadxafrica.com of any unauthorized access.</li>
               </ul>
 
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Subscriptions and Payments</h2>
@@ -73,7 +73,7 @@ export default function Terms() {
                 <li>The Platform is provided "as is" without warranties.</li>
                 <li>We do not guarantee job availability, performance, or outcomes.</li>
                 <li>No insurance is provided.</li>
-                <li>Users indemnify LoadLink Africa for claims arising from their use.</li>
+                <li>Users indemnify LoadX Africa for claims arising from their use.</li>
               </ul>
 
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Termination</h2>
@@ -91,7 +91,7 @@ export default function Terms() {
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Dispute Resolution; Governing Law</h2>
               <ul className="list-disc pl-6 mb-4 text-foreground">
                 <li>User-to-user disputes are between those Users; we may assist via tickets/mediation tools but are not a party.</li>
-                <li>Disputes with LoadLink Africa: informal resolution first; failing that, arbitration in Gaborone, Botswana per the Botswana Institute of Arbitrators; Botswana law governs; exclusive jurisdiction in Gaborone courts for enforcement matters.</li>
+                <li>Disputes with LoadX Africa: informal resolution first; failing that, arbitration in Gaborone, Botswana per the Botswana Institute of Arbitrators; Botswana law governs; exclusive jurisdiction in Gaborone courts for enforcement matters.</li>
               </ul>
 
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Changes to Terms</h2>
@@ -102,15 +102,15 @@ export default function Terms() {
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Contact</h2>
               <p className="mb-4 text-foreground">
                 For questions about these Terms, contact us at:{" "}
-                <a href="mailto:support@loadlink.africa" className="text-primary hover:underline">
-                  support@loadlink.africa
+                <a href="mailto:support@loadxafrica.com" className="text-primary hover:underline">
+                  support@loadxafrica.com
                 </a>
               </p>
             </div>
           </CardContent>
         </Card>
       </div>
-      
+
       <Footer />
     </div>
   );

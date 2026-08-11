@@ -97,7 +97,7 @@ export default function Resources() {
               <div>
                 <h3 className="font-semibold text-amber-800 mb-2">Important Disclaimer</h3>
                 <p className="text-amber-700 text-sm leading-relaxed">
-                  <strong>LoadLink Africa does not provide insurance, act as an insurance broker, or provide insurance advice.</strong> 
+                  <strong>LoadX Africa does not provide insurance, act as an insurance broker, or provide insurance advice.</strong>
                   We are not affiliated with any of the insurance providers listed below. All insurance arrangements must be made directly 
                   with the providers. Users are solely responsible for researching, selecting, and purchasing appropriate insurance coverage 
                   for their cargo and business operations.
@@ -215,7 +215,7 @@ export default function Resources() {
               and contacts you need to protect your freight operations.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="mailto:support@loadlink.africa">
+              <a href="mailto:support@loadxafrica.com">
                 <Button data-testid="contact-support">
                   <Mail className="h-4 w-4 mr-2" />
                   Contact Support

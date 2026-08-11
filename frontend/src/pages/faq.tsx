@@ -11,8 +11,8 @@ import {
 export default function FAQ() {
   const faqs = [
     {
-      question: "What is LoadLink Africa?",
-      answer: "LoadLink Africa connects Trucking Companies and Shipping Entities for efficient freight transport in Botswana and across Africa. Our AI-powered platform provides real-time job matching, secure payments, and comprehensive logistics solutions."
+      question: "What is LoadX Africa?",
+      answer: "LoadX Africa connects Trucking Companies and Shipping Entities for efficient freight transport in Botswana and across Africa. Our AI-powered platform provides real-time job matching, secure payments, and comprehensive logistics solutions."
     },
     {
       question: "How do I sign up?",
@@ -32,7 +32,7 @@ export default function FAQ() {
     },
     {
       question: "Can I pay by bank transfer?",
-      answer: "Yes. For bank transfer payments, email your proof of payment to support@loadlink.africa for manual confirmation and account activation."
+      answer: "Yes. For bank transfer payments, email your proof of payment to support@loadxafrica.com for manual confirmation and account activation."
     },
     {
       question: "Do you send notifications?",
@@ -44,7 +44,7 @@ export default function FAQ() {
     },
     {
       question: "Do you resolve disputes between shippers and truckers?",
-      answer: "We provide dispute resolution tools and optional mediation services, but disputes are ultimately between the involved parties. For disputes involving LoadLink Africa, we follow arbitration procedures in Gaborone as outlined in our Terms and Conditions."
+      answer: "We provide dispute resolution tools and optional mediation services, but disputes are ultimately between the involved parties. For disputes involving LoadX Africa, we follow arbitration procedures in Gaborone as outlined in our Terms and Conditions."
     },
     {
       question: "Can I cancel my subscription?",
@@ -60,7 +60,7 @@ export default function FAQ() {
     },
     {
       question: "Do you provide insurance?",
-      answer: "No. LoadLink Africa does not provide insurance, act as an insurance broker, or give insurance advice. Users are solely responsible for arranging their own coverage. We provide links to external insurance providers on our Resources page for your convenience."
+      answer: "No. LoadX Africa does not provide insurance, act as an insurance broker, or give insurance advice. Users are solely responsible for arranging their own coverage. We provide links to external insurance providers on our Resources page for your convenience."
     },
     {
       question: "Can I export my data?",
@@ -86,7 +86,7 @@ export default function FAQ() {
             Frequently Asked Questions
           </h1>
           <p className="text-xl text-muted-foreground">
-            Find answers to common questions about LoadLink Africa
+            Find answers to common questions about LoadX Africa
           </p>
         </div>
 
@@ -111,7 +111,7 @@ export default function FAQ() {
                 Can't find the answer you're looking for? Get in touch with our support team.
               </p>
               <a 
-                href="mailto:support@loadlink.africa" 
+                href="mailto:support@loadxafrica.com"
                 className="text-primary hover:underline font-medium"
                 data-testid="contact-support-link"
               >

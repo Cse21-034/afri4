@@ -5,7 +5,7 @@ export default function Footer() {
   return (
     <footer className="bg-card border-t border-border" data-testid="footer">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
           {/* Branding & Socials */}
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
@@ -80,11 +80,28 @@ export default function Footer() {
               </li>
             </ul>
           </div>
+
+          {/* Popular Routes */}
+          <div>
+            <h3 className="font-semibold text-foreground mb-4">Popular Routes</h3>
+            <ul className="space-y-2">
+              <li>
+                <Link href="/corridors/gaborone-johannesburg" className="text-muted-foreground hover:text-foreground" data-testid="footer-corridor-gaborone-johannesburg">
+                  Gaborone – Johannesburg
+                </Link>
+              </li>
+              <li>
+                <Link href="/corridors/gaborone-francistown" className="text-muted-foreground hover:text-foreground" data-testid="footer-corridor-gaborone-francistown">
+                  Gaborone – Francistown
+                </Link>
+              </li>
+            </ul>
+          </div>
         </div>
         
         {/* Bottom copyright + developer */}
         <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground">
-          <p>&copy; 2024 LoadLink Africa. All rights reserved. | Gaborone, Botswana</p>
+          <p>&copy; {new Date().getFullYear()} LoadX Africa. All rights reserved. | Gaborone, Botswana</p>
           <p className="mt-2 text-xs flex justify-center items-center gap-1">
             <Heart className="h-4 w-4 text-red-500" />
             Made with ❤️ by{" "}

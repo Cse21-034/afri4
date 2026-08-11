@@ -20,7 +20,7 @@ export default function Privacy() {
               </p>
 
               <p className="mb-6 text-foreground">
-                LoadLink Africa (Pty) Ltd ("we," "us," "our") operates loadlink.africa and is committed to protecting your privacy 
+                LoadX Africa (Pty) Ltd ("we," "us," "our") operates loadxafrica.com and is committed to protecting your privacy
                 in compliance with Botswana's Data Protection Act, 2018. By using the Platform, you agree to this Policy.
               </p>
 
@@ -66,8 +66,8 @@ export default function Privacy() {
               <p className="mb-4 text-foreground">
                 Access, correction, deletion (subject to retention duties), objection to marketing, and complaint to the Data Protection Authority. 
                 Contact{" "}
-                <a href="mailto:support@loadlink.africa" className="text-primary hover:underline">
-                  support@loadlink.africa
+                <a href="mailto:support@loadxafrica.com" className="text-primary hover:underline">
+                  support@loadxafrica.com
                 </a>.
               </p>
 
@@ -97,8 +97,8 @@ export default function Privacy() {
               <h2 className="text-xl font-bold text-foreground mt-8 mb-4">Contact</h2>
               <p className="mb-4 text-foreground">
                 For questions about this Privacy Policy, contact us at:{" "}
-                <a href="mailto:support@loadlink.africa" className="text-primary hover:underline">
-                  support@loadlink.africa
+                <a href="mailto:support@loadxafrica.com" className="text-primary hover:underline">
+                  support@loadxafrica.com
                 </a>
               </p>
             </div>
