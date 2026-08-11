@@ -14,7 +14,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  identifier: z.string().min(1, "Enter your email or phone number"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -43,7 +43,7 @@ export default function Login() {
       // Check if 2FA is required
       if (result.requires2FA) {
         // Store credentials temporarily for 2FA verification
-        sessionStorage.setItem('2fa_email', data.email);
+        sessionStorage.setItem('2fa_email', data.identifier);
         sessionStorage.setItem('2fa_password', data.password);
         
         toast({
@@ -78,8 +78,8 @@ export default function Login() {
           // Check if email is not verified
           if (errorData.emailNotVerified) {
             setLoginError(errorData.message);
-            // Store email for verification page
-            sessionStorage.setItem('verification_email', data.email);
+            // Store email for verification page (emailNotVerified only fires for accounts that have an email)
+            sessionStorage.setItem('verification_email', data.identifier);
             return;
           }
           
@@ -156,17 +156,16 @@ export default function Login() {
 
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div>
-                  <Label htmlFor="email">Email Address</Label>
+                  <Label htmlFor="identifier">Email or Phone Number</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    {...form.register("email")}
-                    placeholder="Enter your email"
-                    data-testid="input-email"
+                    id="identifier"
+                    {...form.register("identifier")}
+                    placeholder="Enter your email or phone number"
+                    data-testid="input-identifier"
                   />
-                  {form.formState.errors.email && (
-                    <p className="text-destructive text-sm mt-1" data-testid="error-email">
-                      {form.formState.errors.email.message}
+                  {form.formState.errors.identifier && (
+                    <p className="text-destructive text-sm mt-1" data-testid="error-identifier">
+                      {form.formState.errors.identifier.message}
                     </p>
                   )}
                 </div>

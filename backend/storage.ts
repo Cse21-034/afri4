@@ -23,6 +23,8 @@ interface IStorage {
   createUser(data: Omit<InsertUser, 'createdAt' | 'updatedAt'>): Promise<User>;
   getUserById(id: number): Promise<User | null>;
   getUserByEmail(email: string): Promise<User | null>;
+  getUserByPhoneNumber(phoneNumber: string): Promise<User | null>;
+  getUserByEmailOrPhone(identifier: string): Promise<User | null>;
   updateUser(id: number, data: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<void>;
   updateUserSubscription(id: number, data: {
         subscriptionStatus: 'active' | 'inactive' | 'trial';
@@ -156,7 +158,25 @@ class PostgreSQLStorage implements IStorage {
       .select()
       .from(users)
       .where(eq(users.email, email));
-    
+
+    return user || null;
+  }
+
+  async getUserByPhoneNumber(phoneNumber: string): Promise<User | null> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.phoneNumber, phoneNumber));
+
+    return user || null;
+  }
+
+  async getUserByEmailOrPhone(identifier: string): Promise<User | null> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(or(eq(users.email, identifier), eq(users.phoneNumber, identifier)));
+
     return user || null;
   }
 

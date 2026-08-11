@@ -92,13 +92,13 @@ export type CountryType = typeof Country[keyof typeof Country];
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   role: userRoleEnum('role').notNull(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
+  email: varchar('email', { length: 255 }).unique(),
   password: varchar('password', { length: 255 }).notNull(),
-  
+
   // Common fields
   companyName: varchar('company_name', { length: 255 }),
   contactPersonName: varchar('contact_person_name', { length: 255 }).notNull(),
-  phoneNumber: varchar('phone_number', { length: 50 }).notNull(),
+  phoneNumber: varchar('phone_number', { length: 50 }).notNull().unique(),
   physicalAddress: text('physical_address').notNull(),
   country: countryEnum('country').notNull().default('BWA'),
   businessRegistrationNumber: varchar('business_registration_number', { length: 100 }),
@@ -270,12 +270,12 @@ export type Dispute = SelectDispute;
 
 // Login schemas
 export const loginSchema = z.object({
-  email: z.string().email(),
+  identifier: z.string().min(1, "Enter your email or phone number"),
   password: z.string()
 });
 
 export const registerTruckingSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().optional().or(z.literal('')).transform(v => v || undefined),
   password: z.string().min(8),
   contactPersonName: z.string().min(1),
   companyName: z.string().min(1),
@@ -288,7 +288,7 @@ export const registerTruckingSchema = z.object({
 });
 
 export const registerShippingSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().optional().or(z.literal('')).transform(v => v || undefined),
   password: z.string().min(8),
   contactPersonName: z.string().min(1),
   companyName: z.string().min(1),

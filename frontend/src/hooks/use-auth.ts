@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface User {
   id: number;
-  email: string;
+  email: string | null;
   role: string;
   companyName?: string;
   contactPersonName: string;
@@ -31,7 +31,7 @@ export function useAuth() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: async (credentials: { email: string; password: string }) => {
+    mutationFn: async (credentials: { identifier: string; password: string }) => {
       const response = await apiRequest('POST', '/api/auth/login', credentials);
       return response.json();
     },

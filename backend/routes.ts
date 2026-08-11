@@ -93,35 +93,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/register/trucking', async (req, res) => {
     try {
       const validatedData = registerTruckingSchema.parse(req.body);
-      
-      // Check if user already exists
-      const existingUser = await storage.getUserByEmail(validatedData.email);
-      if (existingUser) {
-        return res.status(409).json({ message: 'Email already registered' });
+
+      // Check if phone number already registered
+      const existingByPhone = await storage.getUserByPhoneNumber(validatedData.phoneNumber);
+      if (existingByPhone) {
+        return res.status(409).json({ message: 'Phone number already registered' });
       }
 
-      // Create user with verification token
+      // Check if email already registered (only if one was provided)
+      if (validatedData.email) {
+        const existingByEmail = await storage.getUserByEmail(validatedData.email);
+        if (existingByEmail) {
+          return res.status(409).json({ message: 'Email already registered' });
+        }
+      }
+
+      // Create user. Only generate a verification token if an email was provided --
+      // phone-only accounts have no verification step for now and can log in right away.
       const user = await storage.createUser({
         ...validatedData,
         role: UserRole.TRUCKING_COMPANY,
-        emailVerificationToken: crypto.randomBytes(32).toString('hex'),
+        emailVerificationToken: validatedData.email ? crypto.randomBytes(32).toString('hex') : undefined,
         subscriptionStatus: 'trial'
       } as any);
 
-      // Send verification email
-      if (user.emailVerificationToken) {
+      if (user.email && user.emailVerificationToken) {
         const emailSent = await emailService.sendVerificationEmail(
-          user.email, 
+          user.email,
           user.emailVerificationToken
         );
-        
+
         if (!emailSent) {
           console.warn('Failed to send verification email to:', user.email);
         }
       }
 
       res.status(201).json({
-        message: 'Registration successful. Please check your email for verification.'
+        message: user.email
+          ? 'Registration successful. Please check your email for verification.'
+          : 'Registration successful. You can now log in with your phone number.'
       });
     } catch (error: any) {
       console.error('Trucking registration error:', error);
@@ -133,35 +143,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/register/shipping', async (req, res) => {
     try {
       const validatedData = registerShippingSchema.parse(req.body);
-      
-      // Check if user already exists
-      const existingUser = await storage.getUserByEmail(validatedData.email);
-      if (existingUser) {
-        return res.status(409).json({ message: 'Email already registered' });
+
+      // Check if phone number already registered
+      const existingByPhone = await storage.getUserByPhoneNumber(validatedData.phoneNumber);
+      if (existingByPhone) {
+        return res.status(409).json({ message: 'Phone number already registered' });
       }
 
-      // Create user with verification token
+      // Check if email already registered (only if one was provided)
+      if (validatedData.email) {
+        const existingByEmail = await storage.getUserByEmail(validatedData.email);
+        if (existingByEmail) {
+          return res.status(409).json({ message: 'Email already registered' });
+        }
+      }
+
+      // Create user. Only generate a verification token if an email was provided --
+      // phone-only accounts have no verification step for now and can log in right away.
       const user = await storage.createUser({
         ...validatedData,
         role: UserRole.SHIPPING_ENTITY,
-        emailVerificationToken: crypto.randomBytes(32).toString('hex'),
+        emailVerificationToken: validatedData.email ? crypto.randomBytes(32).toString('hex') : undefined,
         subscriptionStatus: 'active' // Shipping entities get free access
       } as any);
 
-      // Send verification email
-      if (user.emailVerificationToken) {
+      if (user.email && user.emailVerificationToken) {
         const emailSent = await emailService.sendVerificationEmail(
-          user.email, 
+          user.email,
           user.emailVerificationToken
         );
-        
+
         if (!emailSent) {
           console.warn('Failed to send verification email to:', user.email);
         }
       }
 
       res.status(201).json({
-        message: 'Registration successful. Please check your email for verification.'
+        message: user.email
+          ? 'Registration successful. Please check your email for verification.'
+          : 'Registration successful. You can now log in with your phone number.'
       });
     } catch (error: any) {
       console.error('Shipping registration error:', error);
@@ -208,13 +228,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Login with 2FA
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { email, password, twoFactorCode } = req.body;
+      const { identifier, email, password, twoFactorCode } = req.body;
 
-      // Validate input
-      const validatedData = loginSchema.parse({ email, password });
+      // Validate input. Accept the legacy `email` field too, for any older frontend build still sending it.
+      const validatedData = loginSchema.parse({ identifier: identifier || email, password });
 
-      // Find user
-      const user = await storage.getUserByEmail(validatedData.email);
+      // Find user by email or phone number
+      const user = await storage.getUserByEmailOrPhone(validatedData.identifier);
       if (!user) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
@@ -255,9 +275,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Check if email is verified
-      if (!user.emailVerified) {
-        return res.status(401).json({ 
+      // Check if email is verified -- only applies to users who registered with an email.
+      // Phone-only accounts have no verification step and skip this check entirely.
+      if (user.email && !user.emailVerified) {
+        return res.status(401).json({
           message: 'Please verify your email before logging in.',
           emailNotVerified: true
         });

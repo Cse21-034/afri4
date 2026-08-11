@@ -25,8 +25,10 @@ const passwordSchema = z
   .regex(/[0-9]/, "Password must contain at least one number")
   .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character");
 
+const optionalEmail = z.string().email("Invalid email address").optional().or(z.literal(''));
+
 const truckingSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: optionalEmail,
   password: passwordSchema,
   contactPersonName: z.string().min(1, "Contact person name is required"),
   companyName: z.string().min(1, "Company name is required"),
@@ -39,7 +41,7 @@ const truckingSchema = z.object({
 });
 
 const shippingSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: optionalEmail,
   password: passwordSchema,
   contactPersonName: z.string().min(1, "Contact person name is required"),
   companyName: z.string().min(1, "Company/Individual name is required"),
@@ -223,11 +225,12 @@ export default function Register() {
                       </div>
 
                       <div>
-                        <Label htmlFor="email">Email Address</Label>
+                        <Label htmlFor="email">Email Address (Optional)</Label>
                         <Input
                           id="email"
                           type="email"
                           {...truckingForm.register("email")}
+                          placeholder="No email? Leave this blank"
                           data-testid="input-email"
                         />
                         {truckingForm.formState.errors.email && (
@@ -245,6 +248,7 @@ export default function Register() {
                           placeholder="+267 xxx xxxx"
                           data-testid="input-phone"
                         />
+                        <p className="text-xs text-muted-foreground mt-1">We'll use this to reach you and for logging in.</p>
                         {truckingForm.formState.errors.phoneNumber && (
                           <p className="text-destructive text-sm mt-1">
                             {truckingForm.formState.errors.phoneNumber.message}
@@ -436,11 +440,12 @@ export default function Register() {
                       </div>
 
                       <div>
-                        <Label htmlFor="email-shipping">Email Address</Label>
+                        <Label htmlFor="email-shipping">Email Address (Optional)</Label>
                         <Input
                           id="email-shipping"
                           type="email"
                           {...shippingForm.register("email")}
+                          placeholder="No email? Leave this blank"
                           data-testid="input-email-shipping"
                         />
                         {shippingForm.formState.errors.email && (
@@ -458,6 +463,7 @@ export default function Register() {
                           placeholder="+267 xxx xxxx"
                           data-testid="input-phone-shipping"
                         />
+                        <p className="text-xs text-muted-foreground mt-1">We'll use this to reach you and for logging in.</p>
                         {shippingForm.formState.errors.phoneNumber && (
                           <p className="text-destructive text-sm mt-1">
                             {shippingForm.formState.errors.phoneNumber.message}

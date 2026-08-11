@@ -29,7 +29,7 @@ export default function Profile() {
   }
 
   const profileFields = [
-    { label: 'Email', value: user.email, icon: Mail },
+    { label: 'Email', value: user.email || 'N/A', icon: Mail },
     { label: 'Name', value: user.contactPersonName, icon: User },
     { label: 'Company', value: user.companyName || 'N/A', icon: Building },
     { label: 'Role', value: user.role?.replace('_', ' ').toUpperCase() || 'N/A', icon: User },
@@ -60,28 +60,30 @@ export default function Profile() {
             
             <CardContent>
               <div className="space-y-6">
-                {/* Email Verification Status */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-blue-800">Email Verification</p>
-                      <p className="text-sm text-blue-600 mt-1">
-                        {user.emailVerified 
-                          ? '✓ Your email has been verified' 
-                          : '⚠ Please verify your email'}
-                      </p>
+                {/* Email Verification Status - only relevant if an email is on file */}
+                {user.email && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-blue-800">Email Verification</p>
+                        <p className="text-sm text-blue-600 mt-1">
+                          {user.emailVerified
+                            ? '✓ Your email has been verified'
+                            : '⚠ Please verify your email'}
+                        </p>
+                      </div>
+                      {!user.emailVerified && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate('/resend-verification')}
+                        >
+                          Verify Email
+                        </Button>
+                      )}
                     </div>
-                    {!user.emailVerified && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate('/resend-verification')}
-                      >
-                        Verify Email
-                      </Button>
-                    )}
                   </div>
-                </div>
+                )}
 
                 {/* Subscription Status */}
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
