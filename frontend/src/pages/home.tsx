@@ -4,7 +4,8 @@ import Navbar from "@/components/ui/navbar";
 import Footer from "@/components/ui/footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Zap, Shield, TrendingUp, Truck, ShipIcon, CheckCircle, FileText, Users, MessageSquare, PackageCheck } from "lucide-react";
+import { Truck, ShipIcon, CheckCircle } from "lucide-react";
+import { PostJobMockup, MatchedMockup, ChatMockup, RatingMockup, FreeJobMockup, VerifiedMockup, InboxMockup } from "@/components/MockupCards";
 
 export default function Home() {
   const { user } = useAuth();
@@ -78,31 +79,6 @@ export default function Home() {
                 </Card>
               </div>
             )}
-
-            {/* Features Grid */}
-            <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-3xl mx-auto">
-              <div className="text-center" data-testid="feature-realtime">
-                <div className="w-16 h-16 bg-primary/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Zap className="text-primary h-8 w-8" />
-                </div>
-                <h3 className="font-semibold text-white mb-2">Real-Time Matching</h3>
-                <p className="text-white/70 text-sm">Instant job alerts and AI-powered recommendations</p>
-              </div>
-              <div className="text-center" data-testid="feature-payments">
-                <div className="w-16 h-16 bg-secondary/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Shield className="text-secondary h-8 w-8" />
-                </div>
-                <h3 className="font-semibold text-white mb-2">Secure Payments</h3>
-                <p className="text-white/70 text-sm">Secure payments with multi-currency support</p>
-              </div>
-              <div className="text-center" data-testid="feature-analytics">
-                <div className="w-16 h-16 bg-accent/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
-                  <TrendingUp className="text-accent h-8 w-8" />
-                </div>
-                <h3 className="font-semibold text-white mb-2">Analytics Dashboard</h3>
-                <p className="text-white/70 text-sm">Track performance and optimize operations</p>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -119,33 +95,33 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="text-center" data-testid="how-it-works-step-1">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 relative">
-                <span className="absolute -top-2 -right-2 w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold flex items-center justify-center">1</span>
-                <FileText className="text-primary h-8 w-8" />
+              <div className="relative inline-block mb-4">
+                <span className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold flex items-center justify-center">1</span>
+                <PostJobMockup />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Post</h3>
               <p className="text-muted-foreground text-sm">Shippers post cargo details, routes, and delivery dates — free, no limits.</p>
             </div>
             <div className="text-center" data-testid="how-it-works-step-2">
-              <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-4 relative">
-                <span className="absolute -top-2 -right-2 w-6 h-6 bg-secondary text-secondary-foreground rounded-full text-xs font-bold flex items-center justify-center">2</span>
-                <Users className="text-secondary h-8 w-8" />
+              <div className="relative inline-block mb-4">
+                <span className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-secondary text-secondary-foreground rounded-full text-xs font-bold flex items-center justify-center">2</span>
+                <MatchedMockup />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Match</h3>
               <p className="text-muted-foreground text-sm">Verified trucking companies see and take jobs that fit their fleet and route.</p>
             </div>
             <div className="text-center" data-testid="how-it-works-step-3">
-              <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4 relative">
-                <span className="absolute -top-2 -right-2 w-6 h-6 bg-accent text-accent-foreground rounded-full text-xs font-bold flex items-center justify-center">3</span>
-                <MessageSquare className="text-accent h-8 w-8" />
+              <div className="relative inline-block mb-4">
+                <span className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-accent text-accent-foreground rounded-full text-xs font-bold flex items-center justify-center">3</span>
+                <ChatMockup />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Coordinate</h3>
               <p className="text-muted-foreground text-sm">Built-in messaging keeps shippers and carriers in sync on pickup and delivery.</p>
             </div>
             <div className="text-center" data-testid="how-it-works-step-4">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 relative">
-                <span className="absolute -top-2 -right-2 w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold flex items-center justify-center">4</span>
-                <PackageCheck className="text-primary h-8 w-8" />
+              <div className="relative inline-block mb-4">
+                <span className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold flex items-center justify-center">4</span>
+                <RatingMockup />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Complete & Rate</h3>
               <p className="text-muted-foreground text-sm">Mark the job complete and rate each other to build trust on the platform.</p>
@@ -208,25 +184,25 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <Card data-testid="feature-card-1">
               <CardContent className="p-6">
-                <CheckCircle className="h-12 w-12 text-secondary mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Free for Shippers</h3>
-                <p className="text-muted-foreground">Post unlimited jobs and connect with qualified carriers at no cost.</p>
+                <div className="mb-4"><FreeJobMockup /></div>
+                <h3 className="text-xl font-semibold mb-2 text-center">Free for Shippers</h3>
+                <p className="text-muted-foreground text-center">Post unlimited jobs and connect with qualified carriers at no cost.</p>
               </CardContent>
             </Card>
 
             <Card data-testid="feature-card-2">
               <CardContent className="p-6">
-                <Truck className="h-12 w-12 text-primary mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Verified Carriers</h3>
-                <p className="text-muted-foreground">Every trucking company submits fleet, registration, and compliance documents for admin review before they can take jobs on the platform.</p>
+                <div className="mb-4"><VerifiedMockup /></div>
+                <h3 className="text-xl font-semibold mb-2 text-center">Verified Carriers</h3>
+                <p className="text-muted-foreground text-center">Every trucking company submits fleet, registration, and compliance documents for admin review before they can take jobs on the platform.</p>
               </CardContent>
             </Card>
 
             <Card data-testid="feature-card-3">
               <CardContent className="p-6">
-                <Shield className="h-12 w-12 text-accent mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Real-Time Communication</h3>
-                <p className="text-muted-foreground">Built-in messaging system for seamless coordination between parties.</p>
+                <div className="mb-4"><InboxMockup /></div>
+                <h3 className="text-xl font-semibold mb-2 text-center">Real-Time Communication</h3>
+                <p className="text-muted-foreground text-center">Built-in messaging system for seamless coordination between parties.</p>
               </CardContent>
             </Card>
           </div>
