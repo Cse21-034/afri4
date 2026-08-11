@@ -14,20 +14,32 @@ export default function Home() {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 py-20" data-testid="hero-section">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative py-24 overflow-hidden" data-testid="hero-section">
+        {/* Background image: photo by Tom Jackson on Unsplash (images.unsplash.com/photo-1720811559395-3ed8d1b16649), free Unsplash License */}
+        <div className="absolute inset-0 z-0">
+          <img
+            src="https://images.unsplash.com/photo-1720811559395-3ed8d1b16649?fm=jpg&q=80&w=1920&auto=format&fit=crop"
+            alt="A semi truck on the open road, representing freight moving across Botswana and the region"
+            className="w-full h-full object-cover"
+            loading="eager"
+            data-testid="hero-image"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/80" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
-            <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6" data-testid="hero-title">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 drop-shadow-md" data-testid="hero-title">
               Post a Load. Get Matched.
               <span className="text-transparent bg-gradient-to-r from-primary to-secondary bg-clip-text">
                 {" "}Ship With Confidence.
               </span>
             </h1>
-            <p className="text-xl text-muted-foreground mb-4 max-w-2xl mx-auto" data-testid="hero-description">
+            <p className="text-xl text-white/90 mb-4 max-w-2xl mx-auto drop-shadow-sm" data-testid="hero-description">
               LoadX Africa connects shippers with verified trucking companies across Botswana and the region —
               real-time job matching, in-app messaging, and secure payments from posting to delivery.
             </p>
-            <p className="text-sm text-muted-foreground mb-12" data-testid="hero-tagline-setswana">
+            <p className="text-sm text-white/70 mb-12" data-testid="hero-tagline-setswana">
               Dumela! Welcome to Botswana's freight matching platform.
             </p>
 
@@ -67,39 +79,28 @@ export default function Home() {
               </div>
             )}
 
-            {/* Hero image: photo by Tom Jackson on Unsplash (images.unsplash.com/photo-1720811559395-3ed8d1b16649), free Unsplash License */}
-            <div className="mt-16 max-w-4xl mx-auto">
-              <img
-                src="https://images.unsplash.com/photo-1720811559395-3ed8d1b16649?fm=jpg&q=80&w=1920&auto=format&fit=crop"
-                alt="A semi truck on the open road, representing freight moving across Botswana and the region"
-                className="w-full h-64 md:h-96 object-cover rounded-2xl shadow-lg"
-                loading="eager"
-                data-testid="hero-image"
-              />
-            </div>
-
             {/* Features Grid */}
             <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-3xl mx-auto">
               <div className="text-center" data-testid="feature-realtime">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-primary/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
                   <Zap className="text-primary h-8 w-8" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">Real-Time Matching</h3>
-                <p className="text-muted-foreground text-sm">Instant job alerts and AI-powered recommendations</p>
+                <h3 className="font-semibold text-white mb-2">Real-Time Matching</h3>
+                <p className="text-white/70 text-sm">Instant job alerts and AI-powered recommendations</p>
               </div>
               <div className="text-center" data-testid="feature-payments">
-                <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-secondary/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
                   <Shield className="text-secondary h-8 w-8" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">Secure Payments</h3>
-                <p className="text-muted-foreground text-sm">Secure payments with multi-currency support</p>
+                <h3 className="font-semibold text-white mb-2">Secure Payments</h3>
+                <p className="text-white/70 text-sm">Secure payments with multi-currency support</p>
               </div>
               <div className="text-center" data-testid="feature-analytics">
-                <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-accent/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
                   <TrendingUp className="text-accent h-8 w-8" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">Analytics Dashboard</h3>
-                <p className="text-muted-foreground text-sm">Track performance and optimize operations</p>
+                <h3 className="font-semibold text-white mb-2">Analytics Dashboard</h3>
+                <p className="text-white/70 text-sm">Track performance and optimize operations</p>
               </div>
             </div>
           </div>
