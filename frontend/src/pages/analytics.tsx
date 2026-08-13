@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Navbar from "@/components/ui/navbar";
-import { BarChart3, TrendingUp, Package, DollarSign, Clock, Target } from "lucide-react";
+import { BarChart3, TrendingUp, Package, Clock, Target } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -28,8 +28,6 @@ export default function Analytics() {
   const activeJobs = jobs.filter((job: any) => job.status === 'taken');
   const availableJobs = jobs.filter((job: any) => job.status === 'available');
 
-  const totalRevenue = completedJobs.reduce((sum: number, job: any) => sum + (job.paymentAmount || 0), 0);
-  const averageJobValue = completedJobs.length > 0 ? totalRevenue / completedJobs.length : 0;
   const completionRate = jobs.length > 0 ? (completedJobs.length / jobs.length) * 100 : 0;
 
   // Calculate delivery times for trucking companies
@@ -47,18 +45,18 @@ export default function Analytics() {
     <div className="min-h-screen bg-background" data-testid="analytics-page">
       <Navbar />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="analytics-title">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2" data-testid="analytics-title">
               Analytics & Performance
             </h1>
-            <p className="text-muted-foreground">Track your business performance and optimize operations</p>
+            <p className="text-muted-foreground text-sm sm:text-base">Track your business performance and optimize operations</p>
           </div>
-          
+
           <Link href="/dashboard">
-            <Button variant="outline" data-testid="back-to-dashboard">
+            <Button variant="outline" className="w-full sm:w-auto" data-testid="back-to-dashboard">
               Back to Dashboard
             </Button>
           </Link>
@@ -71,9 +69,9 @@ export default function Analytics() {
         ) : (
           <>
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
               <Card data-testid="kpi-total-jobs">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">
@@ -92,7 +90,7 @@ export default function Analytics() {
               </Card>
 
               <Card data-testid="kpi-completed">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Completed</p>
@@ -106,26 +104,9 @@ export default function Analytics() {
                 </CardContent>
               </Card>
 
-              <Card data-testid="kpi-revenue">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        {user.role === 'trucking_company' ? 'Total Revenue' : 'Total Paid'}
-                      </p>
-                      <p className="text-3xl font-bold text-foreground">BWP {totalRevenue.toLocaleString()}</p>
-                      <p className="text-sm text-secondary mt-1">BWP {averageJobValue.toFixed(0)} avg per job</p>
-                    </div>
-                    <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                      <DollarSign className="h-6 w-6 text-accent" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
               {user.role === 'trucking_company' && (
                 <Card data-testid="kpi-delivery-time">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground">Avg Delivery Time</p>
@@ -142,7 +123,7 @@ export default function Analytics() {
 
               {user.role === 'shipping_entity' && (
                 <Card data-testid="kpi-active-jobs">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground">Active Jobs</p>
@@ -159,7 +140,7 @@ export default function Analytics() {
             </div>
 
             {/* Performance Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mb-8">
               <Card data-testid="chart-performance">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
