@@ -63,9 +63,44 @@ function generate2FACode(): string {
 
 // Helper function to generate backup codes
 function generateBackupCodes(): string[] {
-  return Array.from({ length: 10 }, () => 
+  return Array.from({ length: 10 }, () =>
     crypto.randomBytes(4).toString('hex').toUpperCase()
   );
+}
+
+// Attaches job details and the other participant's public info to a chat,
+// for the chat inbox/detail UI. Never spreads the raw user record (has password hash etc.) -
+// only whitelisted public fields are included.
+async function enrichChat(chat: any, currentUserId: number) {
+  const otherParticipantId = chat.participants.find((p: number) => p !== currentUserId);
+
+  const [job, otherUser] = await Promise.all([
+    storage.getJobById(chat.jobId),
+    otherParticipantId ? storage.getUserById(otherParticipantId) : Promise.resolve(null)
+  ]);
+
+  return {
+    ...chat,
+    job: job ? {
+      id: job.id,
+      cargoType: job.cargoType,
+      pickupAddress: job.pickupAddress,
+      deliveryAddress: job.deliveryAddress,
+      pickupCountry: job.pickupCountry,
+      deliveryCountry: job.deliveryCountry,
+      status: job.status,
+      pickupDate: job.pickupDate,
+      deliveryDeadline: job.deliveryDeadline,
+    } : null,
+    otherParticipant: otherUser ? {
+      id: otherUser.id,
+      name: otherUser.contactPersonName,
+      companyName: otherUser.companyName,
+      email: otherUser.email,
+      phoneNumber: otherUser.phoneNumber,
+      role: otherUser.role,
+    } : null
+  };
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -741,7 +776,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/chats', authenticateToken, async (req: AuthRequest, res) => {
     try {
       const chats = await storage.getChatsByUser(req.user!.id);
-      res.json({ chats });
+      const enriched = await Promise.all(chats.map(chat => enrichChat(chat, req.user!.id)));
+      res.json({ chats: enriched });
     } catch (error: any) {
       console.error('Chats fetch error:', error);
       res.status(500).json({ message: 'Failed to fetch chats' });
@@ -790,7 +826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Not authorized to access this chat' });
       }
 
-      res.json({ chat });
+      res.json({ chat: await enrichChat(chat, req.user!.id) });
     } catch (error: any) {
       console.error('Chat fetch error:', error);
       res.status(500).json({ message: 'Failed to fetch chat' });
@@ -811,7 +847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Not authorized to access this chat' });
       }
 
-      res.json({ chat });
+      res.json({ chat: await enrichChat(chat, req.user!.id) });
     } catch (error: any) {
       console.error('Chat fetch error:', error);
       res.status(500).json({ message: 'Failed to fetch chat' });

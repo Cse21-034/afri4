@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, MessageSquare, User } from "lucide-react";
+import { Send, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Message {
@@ -28,11 +28,20 @@ interface Chat {
   updatedAt: string;
 }
 
-interface ChatInterfaceProps {
-  chatId: number;
+interface OtherParticipant {
+  id: number;
+  name?: string;
+  companyName?: string;
+  phoneNumber?: string;
+  email?: string | null;
 }
 
-export function ChatInterface({ chatId }: ChatInterfaceProps) {
+interface ChatInterfaceProps {
+  chatId: number;
+  otherParticipant?: OtherParticipant | null;
+}
+
+export function ChatInterface({ chatId, otherParticipant }: ChatInterfaceProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -149,16 +158,19 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
   };
 
   const getOtherParticipantName = () => {
-    if (!chat || !user) return "Unknown";
-    const otherParticipant = chat.participants.find(p => p !== user.id);
-    return otherParticipant ? "Chat Partner" : "Unknown";
+    return otherParticipant?.name || otherParticipant?.companyName || "Chat Partner";
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return "?";
+    return name.trim().split(/\s+/).map(p => p[0]).join("").slice(0, 2).toUpperCase();
   };
 
   const getUserInitials = (userId: number) => {
     if (userId === user?.id) {
-      return user.contactPersonName?.substring(0, 2).toUpperCase() || "ME";
+      return getInitials(user.contactPersonName) || "ME";
     }
-    return "CP"; // Chat Partner
+    return getInitials(getOtherParticipantName());
   };
 
   const formatMessageTime = (timestamp: string) => {
@@ -167,6 +179,20 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
       minute: '2-digit',
       hour12: true
     });
+  };
+
+  const formatDateDivider = (timestamp: string) => {
+    return new Date(timestamp).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const isSameDay = (a: string, b: string) => {
+    const da = new Date(a);
+    const db = new Date(b);
+    return da.toDateString() === db.toDateString();
   };
 
   if (isLoading) {
@@ -196,14 +222,14 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
           <div className="flex items-center space-x-3">
             <Avatar className="h-8 w-8">
               <AvatarFallback>
-                <User className="h-4 w-4" />
+                {getInitials(getOtherParticipantName())}
               </AvatarFallback>
             </Avatar>
             <div>
               <CardTitle className="text-sm">{getOtherParticipantName()}</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Job Chat • {chat.participants.length} participants
-              </p>
+              {otherParticipant?.companyName && otherParticipant.companyName !== getOtherParticipantName() && (
+                <p className="text-xs text-muted-foreground">{otherParticipant.companyName}</p>
+              )}
             </div>
           </div>
           
@@ -216,50 +242,60 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 p-0">
-        <ScrollArea className="h-[400px] p-4" data-testid="chat-messages">
+      <CardContent className="flex-1 min-h-0 flex flex-col p-0">
+        <ScrollArea className="flex-1 p-4" data-testid="chat-messages">
           <div className="space-y-4">
             {chat.messages && chat.messages.length > 0 ? (
               chat.messages.map((message, index) => {
                 const isOwn = message.senderId === user?.id;
-                
+                const prevMessage = index > 0 ? chat.messages[index - 1] : null;
+                const showDateDivider = !prevMessage || !isSameDay(prevMessage.timestamp, message.timestamp);
+
                 return (
-                  <div
-                    key={index}
-                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-                    data-testid={`message-${index}`}
-                  >
-                    <div className="flex items-start space-x-2 max-w-xs lg:max-w-md">
-                      {!isOwn && (
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs">
-                            {getUserInitials(message.senderId)}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      
-                      <div className={`rounded-lg px-4 py-2 ${
-                        isOwn 
-                          ? 'bg-primary text-primary-foreground' 
-                          : 'bg-muted'
-                      }`}>
-                        <p className="text-sm">{message.content}</p>
-                        <p className={`text-xs mt-1 ${
-                          isOwn 
-                            ? 'text-primary-foreground/70' 
-                            : 'text-muted-foreground'
-                        }`}>
-                          {formatMessageTime(message.timestamp)}
-                        </p>
+                  <div key={index}>
+                    {showDateDivider && (
+                      <div className="flex justify-center my-4">
+                        <span className="text-xs font-medium bg-muted text-muted-foreground rounded-full px-3 py-1">
+                          {formatDateDivider(message.timestamp)}
+                        </span>
                       </div>
-                      
-                      {isOwn && (
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs">
-                            {getUserInitials(message.senderId)}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
+                    )}
+                    <div
+                      className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                      data-testid={`message-${index}`}
+                    >
+                      <div className="flex items-start space-x-2 max-w-xs lg:max-w-md">
+                        {!isOwn && (
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-xs">
+                              {getUserInitials(message.senderId)}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+
+                        <div className={`rounded-lg px-4 py-2 ${
+                          isOwn
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted'
+                        }`}>
+                          <p className="text-sm">{message.content}</p>
+                          <p className={`text-xs mt-1 ${
+                            isOwn
+                              ? 'text-primary-foreground/70'
+                              : 'text-muted-foreground'
+                          }`}>
+                            {formatMessageTime(message.timestamp)}
+                          </p>
+                        </div>
+
+                        {isOwn && (
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-xs">
+                              {getUserInitials(message.senderId)}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -277,7 +313,7 @@ export function ChatInterface({ chatId }: ChatInterfaceProps) {
         </ScrollArea>
 
         {/* Message Input */}
-        <div className="p-4 border-t">
+        <div className="p-4 border-t border-border flex-shrink-0">
           {!isConnected && (
             <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-center">
               <span className="text-amber-700 text-sm">
