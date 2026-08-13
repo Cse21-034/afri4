@@ -238,8 +238,8 @@ export default function ShippingDashboard() {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_260px] gap-6 items-start">
-          {/* Left: Profile Card */}
-          <Card data-testid="profile-card">
+          {/* Left: Profile Card (desktop only -- mobile keeps just the job list; profile is reachable via the navbar) */}
+          <Card className="hidden lg:block" data-testid="profile-card">
             <CardContent className="p-6 text-center">
               <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-3">
                 <ShipIcon className="text-secondary-foreground h-8 w-8" />

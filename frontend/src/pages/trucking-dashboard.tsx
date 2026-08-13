@@ -275,8 +275,8 @@ export default function TruckingDashboard() {
           {/* BROWSE JOBS TAB */}
           <TabsContent value="browse" data-testid="jobs-content">
             <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_260px] gap-6 items-start">
-              {/* Left: Profile + Fleet */}
-              <div className="space-y-6">
+              {/* Left: Profile + Fleet (desktop only -- mobile keeps just the job list; profile is reachable via the navbar) */}
+              <div className="hidden lg:block space-y-6">
                 <Card data-testid="profile-card">
                   <CardContent className="p-6 text-center">
                     <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-3">
