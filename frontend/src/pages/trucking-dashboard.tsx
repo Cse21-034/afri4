@@ -17,11 +17,12 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import Navbar from "@/components/ui/navbar";
 import { JobListItem } from "@/components/job-list-item";
 import { Link } from "wouter";
 
-import { Search, Truck, User as UserIcon } from "lucide-react";
+import { Search, Truck, User as UserIcon, SlidersHorizontal } from "lucide-react";
 
 interface Job {
   id: number;
@@ -92,6 +93,7 @@ export default function TruckingDashboard() {
   const { onJobUpdate, onNewMessage } = useWebSocket();
 
   const [activeTab, setActiveTab] = useState("browse");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [cargoTypeFilter, setCargoTypeFilter] = useState("all");
@@ -191,6 +193,71 @@ export default function TruckingDashboard() {
 
   const filtersActive = cargoTypeFilter !== "all" || pickupCountryFilter !== "all" || deliveryCountryFilter !== "all";
 
+  const filterFields = (
+    <>
+      <div>
+        <h3 className="font-semibold text-sm mb-2 text-primary">Cargo Type</h3>
+        <Select value={cargoTypeFilter} onValueChange={setCargoTypeFilter}>
+          <SelectTrigger data-testid="filter-cargo-type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All cargo types</SelectItem>
+            {CARGO_TYPE_OPTIONS.map((c) => (
+              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <h3 className="font-semibold text-sm mb-2 text-primary">Pickup Country</h3>
+        <Select value={pickupCountryFilter} onValueChange={setPickupCountryFilter}>
+          <SelectTrigger data-testid="filter-pickup-country">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any country</SelectItem>
+            {COUNTRY_OPTIONS.map((c) => (
+              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <h3 className="font-semibold text-sm mb-2 text-primary">Delivery Country</h3>
+        <Select value={deliveryCountryFilter} onValueChange={setDeliveryCountryFilter}>
+          <SelectTrigger data-testid="filter-delivery-country">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any country</SelectItem>
+            {COUNTRY_OPTIONS.map((c) => (
+              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {filtersActive && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => {
+            setCargoTypeFilter("all");
+            setPickupCountryFilter("all");
+            setDeliveryCountryFilter("all");
+          }}
+          data-testid="clear-filters"
+        >
+          Clear Filters
+        </Button>
+      )}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-background" data-testid="trucking-dashboard">
       <Navbar />
@@ -278,6 +345,15 @@ export default function TruckingDashboard() {
                       <SelectItem value="oldest">Oldest first</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="lg:hidden flex-shrink-0"
+                    onClick={() => setIsFilterOpen(true)}
+                    data-testid="open-filters-button"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </Button>
                 </div>
 
                 <div className="space-y-3" data-testid="job-listings">
@@ -309,69 +385,10 @@ export default function TruckingDashboard() {
                 </div>
               </div>
 
-              {/* Right: Job Filter */}
-              <Card data-testid="job-filter-card">
+              {/* Right: Job Filter (desktop only -- mobile uses the Sheet drawer) */}
+              <Card className="hidden lg:block" data-testid="job-filter-card">
                 <CardContent className="p-5 space-y-5">
-                  <div>
-                    <h3 className="font-semibold text-sm mb-2 text-primary">Cargo Type</h3>
-                    <Select value={cargoTypeFilter} onValueChange={setCargoTypeFilter}>
-                      <SelectTrigger data-testid="filter-cargo-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All cargo types</SelectItem>
-                        {CARGO_TYPE_OPTIONS.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-sm mb-2 text-primary">Pickup Country</h3>
-                    <Select value={pickupCountryFilter} onValueChange={setPickupCountryFilter}>
-                      <SelectTrigger data-testid="filter-pickup-country">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Any country</SelectItem>
-                        {COUNTRY_OPTIONS.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-sm mb-2 text-primary">Delivery Country</h3>
-                    <Select value={deliveryCountryFilter} onValueChange={setDeliveryCountryFilter}>
-                      <SelectTrigger data-testid="filter-delivery-country">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Any country</SelectItem>
-                        {COUNTRY_OPTIONS.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {filtersActive && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        setCargoTypeFilter("all");
-                        setPickupCountryFilter("all");
-                        setDeliveryCountryFilter("all");
-                      }}
-                      data-testid="clear-filters"
-                    >
-                      Clear Filters
-                    </Button>
-                  )}
+                  {filterFields}
                 </CardContent>
               </Card>
             </div>
@@ -407,6 +424,18 @@ export default function TruckingDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Mobile filter drawer */}
+      <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+        <SheetContent side="right" className="w-80" data-testid="filter-drawer">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6 space-y-5">
+            {filterFields}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

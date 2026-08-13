@@ -14,10 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { JobListItem } from "@/components/job-list-item";
 import Navbar from "@/components/ui/navbar";
-import { Plus, ShipIcon, Package, Search, User as UserIcon } from "lucide-react";
+import { Plus, ShipIcon, Package, Search, User as UserIcon, SlidersHorizontal } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
@@ -64,6 +65,13 @@ const SADC_COUNTRIES = [
   { value: "ZWE", label: "Zimbabwe" },
 ];
 
+const statusFilterOptions = [
+  { key: 'all', label: 'All Jobs' },
+  { key: 'available', label: 'Available' },
+  { key: 'taken', label: 'In Progress' },
+  { key: 'completed', label: 'Completed' },
+] as const;
+
 interface Job {
   id: number;
   cargoType: string;
@@ -108,6 +116,7 @@ export default function ShippingDashboard() {
   const { onNewMessage } = useWebSocket();
   
   const [isJobDialogOpen, setIsJobDialogOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [statusFilter, setStatusFilter] = useState<"all" | "available" | "taken" | "completed">("all");
@@ -508,6 +517,15 @@ export default function ShippingDashboard() {
                   <SelectItem value="oldest">Oldest first</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                className="lg:hidden flex-shrink-0"
+                onClick={() => setIsFilterOpen(true)}
+                data-testid="open-filters-button"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
             </div>
 
             <div className="space-y-3">
@@ -549,17 +567,12 @@ export default function ShippingDashboard() {
             </div>
           </div>
 
-          {/* Right: Job Filter */}
-          <Card data-testid="job-filter-card">
+          {/* Right: Job Filter (desktop only -- mobile uses the Sheet drawer below) */}
+          <Card className="hidden lg:block" data-testid="job-filter-card">
             <CardContent className="p-5">
               <h3 className="font-semibold text-sm mb-3 text-primary">Status</h3>
               <div className="space-y-1 text-sm">
-                {([
-                  { key: 'all', label: 'All Jobs' },
-                  { key: 'available', label: 'Available' },
-                  { key: 'taken', label: 'In Progress' },
-                  { key: 'completed', label: 'Completed' },
-                ] as const).map((option) => (
+                {statusFilterOptions.map((option) => (
                   <div
                     key={option.key}
                     className="flex items-center justify-between cursor-pointer py-1.5 px-1 rounded hover:bg-muted/50"
@@ -581,6 +594,46 @@ export default function ShippingDashboard() {
           </Card>
         </div>
       </div>
+
+      {/* Mobile filter drawer */}
+      <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+        <SheetContent side="right" className="w-80" data-testid="filter-drawer">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="mt-6">
+            <h3 className="font-semibold text-sm mb-3 text-primary">Status</h3>
+            <div className="space-y-1 text-sm">
+              {statusFilterOptions.map((option) => (
+                <div
+                  key={option.key}
+                  className="flex items-center justify-between cursor-pointer py-2 px-1 rounded hover:bg-muted/50"
+                  onClick={() => setStatusFilter(option.key)}
+                  data-testid={`mobile-status-filter-${option.key}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Checkbox
+                      checked={statusFilter === option.key}
+                      onCheckedChange={() => setStatusFilter(option.key)}
+                    />
+                    {option.label}
+                  </span>
+                  <span className="text-muted-foreground">{statusCounts[option.key]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Floating "Post a Job" button (mobile only -- desktop uses the profile card button) */}
+      <Button
+        className="lg:hidden fixed right-6 bottom-20 md:bottom-6 z-40 h-14 w-14 rounded-full p-0 shadow-lg bg-secondary text-secondary-foreground hover:bg-secondary/90"
+        onClick={() => setIsJobDialogOpen(true)}
+        data-testid="post-job-fab"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
     </div>
   );
 }
