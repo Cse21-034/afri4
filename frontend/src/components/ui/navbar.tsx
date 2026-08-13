@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Truck, Bell, LogOut, Settings, User } from "lucide-react";
+import BottomNav from "@/components/ui/bottom-nav";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -50,6 +51,7 @@ export default function Navbar() {
   ] : [];
 
   return (
+    <>
     <nav className="bg-card border-b border-border shadow-sm sticky top-0 z-50" data-testid="navbar">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
@@ -246,5 +248,7 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
+    {user && <BottomNav />}
+    </>
   );
 }
