@@ -497,35 +497,37 @@ export default function ShippingDashboard() {
               <Badge variant="secondary" data-testid="jobs-found-count">{displayedJobs.length} jobs found</Badge>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <div className="relative flex-1">
+            <div className="space-y-3 mb-4">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search your jobs..."
-                  className="pl-9"
+                  className="pl-9 bg-card"
                   data-testid="job-search"
                 />
               </div>
-              <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "newest" | "oldest")}>
-                <SelectTrigger className="w-full sm:w-40" data-testid="sort-order">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest first</SelectItem>
-                  <SelectItem value="oldest">Oldest first</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="icon"
-                className="lg:hidden flex-shrink-0"
-                onClick={() => setIsFilterOpen(true)}
-                data-testid="open-filters-button"
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-3">
+                <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "newest" | "oldest")}>
+                  <SelectTrigger className="flex-1 sm:w-40 sm:flex-none bg-card" data-testid="sort-order">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Newest first</SelectItem>
+                    <SelectItem value="oldest">Oldest first</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="lg:hidden flex-shrink-0 bg-card"
+                  onClick={() => setIsFilterOpen(true)}
+                  data-testid="open-filters-button"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3">
