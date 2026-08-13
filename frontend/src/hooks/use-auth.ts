@@ -8,8 +8,11 @@ interface User {
   role: string;
   companyName?: string;
   contactPersonName: string;
+  phoneNumber?: string;
   subscriptionStatus: string;
   emailVerified: boolean;
+  fleetSize?: number;
+  cargoTypes?: string[];
 }
 
 interface AuthResponse {

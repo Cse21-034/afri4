@@ -591,9 +591,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: req.user!.role,
         companyName: req.user!.companyName,
         contactPersonName: req.user!.contactPersonName,
+        phoneNumber: req.user!.phoneNumber,
         subscriptionStatus: req.user!.subscriptionStatus,
         emailVerified: req.user!.emailVerified,
-        twoFactorEnabled: req.user!.twoFactorEnabled
+        twoFactorEnabled: req.user!.twoFactorEnabled,
+        fleetSize: req.user!.fleetSize,
+        cargoTypes: req.user!.cargoTypes
       }
     });
   });
