@@ -11,14 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { JobCard } from "@/components/job-card";
+import { JobListItem } from "@/components/job-list-item";
 import Navbar from "@/components/ui/navbar";
-import { Plus, ShipIcon, MessageSquare, BarChart3, Package } from "lucide-react";
+import { Plus, ShipIcon, Package, Search, User as UserIcon } from "lucide-react";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -107,8 +107,10 @@ export default function ShippingDashboard() {
   const queryClient = useQueryClient();
   const { onNewMessage } = useWebSocket();
   
-  const [activeTab, setActiveTab] = useState("jobs");
   const [isJobDialogOpen, setIsJobDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [statusFilter, setStatusFilter] = useState<"all" | "available" | "taken" | "completed">("all");
 
   const form = useForm<JobFormData>({
     resolver: zodResolver(jobSchema),
@@ -196,34 +198,56 @@ export default function ShippingDashboard() {
     return <div className="min-h-screen flex items-center justify-center">Unauthorized</div>;
   }
 
-  const activeJobs = myJobsData?.jobs?.filter((job: Job) => job.status !== 'completed') || [];
-  const completedJobs = myJobsData?.jobs?.filter((job: Job) => job.status === 'completed') || [];
+  const allJobs: Job[] = myJobsData?.jobs || [];
+  const statusCounts = {
+    all: allJobs.length,
+    available: allJobs.filter((j) => j.status === 'available').length,
+    taken: allJobs.filter((j) => j.status === 'taken').length,
+    completed: allJobs.filter((j) => j.status === 'completed').length,
+  };
+
+  const displayedJobs = allJobs
+    .filter((job) => statusFilter === 'all' || job.status === statusFilter)
+    .filter((job) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        job.cargoType.toLowerCase().includes(q) ||
+        job.pickupAddress.toLowerCase().includes(q) ||
+        job.deliveryAddress.toLowerCase().includes(q) ||
+        job.notes?.toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortOrder === 'newest' ? -diff : diff;
+    });
 
   return (
     <div className="min-h-screen bg-background" data-testid="shipping-dashboard">
       <Navbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
-                  <ShipIcon className="text-secondary-foreground h-6 w-6" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-foreground" data-testid="company-name">
-                    {user.companyName}
-                  </h1>
-                  <p className="text-muted-foreground">Active Jobs: {activeJobs.length}</p>
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_260px] gap-6 items-start">
+          {/* Left: Profile Card */}
+          <Card data-testid="profile-card">
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-3">
+                <ShipIcon className="text-secondary-foreground h-8 w-8" />
               </div>
+              <h2 className="font-bold text-foreground" data-testid="company-name">{user.companyName}</h2>
+              <p className="text-sm text-muted-foreground mb-4">Shipping Entity</p>
+              <Link href="/profile">
+                <Button variant="outline" className="w-full mb-3" data-testid="edit-profile-button">
+                  <UserIcon className="h-4 w-4 mr-2" />
+                  Edit Profile
+                </Button>
+              </Link>
               <Dialog open={isJobDialogOpen} onOpenChange={setIsJobDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-secondary text-secondary-foreground hover:bg-secondary/90" data-testid="post-job-button">
+                  <Button className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90" data-testid="post-job-button">
                     <Plus className="h-4 w-4 mr-2" />
-                    Post New Job
+                    Post a Job
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="job-dialog">
@@ -454,144 +478,108 @@ export default function ShippingDashboard() {
                   </form>
                 </DialogContent>
               </Dialog>
+            </CardContent>
+          </Card>
+
+          {/* Middle: My Jobs List */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-2xl font-bold text-foreground">My Jobs</h1>
+              <Badge variant="secondary" data-testid="jobs-found-count">{displayedJobs.length} jobs found</Badge>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Dashboard Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} data-testid="dashboard-tabs">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="jobs" className="flex items-center gap-2" data-testid="tab-jobs">
-              <Package className="h-4 w-4" />
-              My Jobs
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="flex items-center gap-2" data-testid="tab-messages">
-              <MessageSquare className="h-4 w-4" />
-              Messages
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2" data-testid="tab-analytics">
-              <BarChart3 className="h-4 w-4" />
-              Analytics
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="jobs" className="mt-6" data-testid="jobs-content">
-            <div className="space-y-6">
-              {/* Active Jobs */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Active Jobs ({activeJobs.length})</h3>
-                <div className="space-y-4">
-                  {activeJobs.length > 0 ? (
-                    activeJobs.map((job: Job) => (
-                      <JobCard
-                        key={job.id}
-                        job={job}
-                        userRole="shipping_entity"
-                        onCompleteJob={handleCompleteJob}
-                        showManageActions={true}
-                        isLoading={completeJobMutation.isPending}
-                        data-testid={`job-card-${job.id}`}
-                      />
-                    ))
-                  ) : (
-                    <Card>
-                      <CardContent className="p-8 text-center">
-                        <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h4 className="text-lg font-semibold mb-2">No active jobs</h4>
-                        <p className="text-muted-foreground mb-4">
-                          Post your first job to start connecting with carriers.
-                        </p>
-                        <Button onClick={() => setIsJobDialogOpen(true)} data-testid="post-first-job">
-                          Post Your First Job
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search your jobs..."
+                  className="pl-9"
+                  data-testid="job-search"
+                />
               </div>
+              <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "newest" | "oldest")}>
+                <SelectTrigger className="w-full sm:w-40" data-testid="sort-order">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="oldest">Oldest first</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              {/* Completed Jobs */}
-              {completedJobs.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Completed Jobs ({completedJobs.length})</h3>
-                  <div className="space-y-4">
-                    {completedJobs.map((job: Job) => (
-                      <JobCard
-                        key={job.id}
-                        job={job}
-                        userRole="shipping_entity"
-                        showManageActions={false}
-                        data-testid={`completed-job-card-${job.id}`}
-                      />
-                    ))}
-                  </div>
+            <div className="space-y-3">
+              {jobsLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
                 </div>
+              ) : displayedJobs.length > 0 ? (
+                displayedJobs.map((job) => (
+                  <JobListItem
+                    key={job.id}
+                    job={job}
+                    userRole="shipping_entity"
+                    onCompleteJob={handleCompleteJob}
+                    showManageActions={true}
+                    isLoading={completeJobMutation.isPending}
+                  />
+                ))
+              ) : (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h4 className="text-lg font-semibold mb-2">
+                      {allJobs.length === 0 ? "No jobs yet" : "No matching jobs"}
+                    </h4>
+                    <p className="text-muted-foreground mb-4">
+                      {allJobs.length === 0
+                        ? "Post your first job to start connecting with carriers."
+                        : "Try a different search or filter."}
+                    </p>
+                    {allJobs.length === 0 && (
+                      <Button onClick={() => setIsJobDialogOpen(true)} data-testid="post-first-job">
+                        Post Your First Job
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
               )}
             </div>
-          </TabsContent>
+          </div>
 
-          <TabsContent value="messages" className="mt-6" data-testid="messages-content">
-            <Card>
-              <CardContent className="p-8 text-center">
-                <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Messages</h3>
-                <p className="text-muted-foreground">
-                  Communicate with carriers about your jobs and shipments.
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="mt-6" data-testid="analytics-content">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Jobs Posted</p>
-                      <p className="text-2xl font-bold">{myJobsData?.jobs?.length || 0}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <Package className="h-6 w-6 text-primary" />
-                    </div>
+          {/* Right: Job Filter */}
+          <Card data-testid="job-filter-card">
+            <CardContent className="p-5">
+              <h3 className="font-semibold text-sm mb-3 text-primary">Status</h3>
+              <div className="space-y-1 text-sm">
+                {([
+                  { key: 'all', label: 'All Jobs' },
+                  { key: 'available', label: 'Available' },
+                  { key: 'taken', label: 'In Progress' },
+                  { key: 'completed', label: 'Completed' },
+                ] as const).map((option) => (
+                  <div
+                    key={option.key}
+                    className="flex items-center justify-between cursor-pointer py-1.5 px-1 rounded hover:bg-muted/50"
+                    onClick={() => setStatusFilter(option.key)}
+                    data-testid={`status-filter-${option.key}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Checkbox
+                        checked={statusFilter === option.key}
+                        onCheckedChange={() => setStatusFilter(option.key)}
+                      />
+                      {option.label}
+                    </span>
+                    <span className="text-muted-foreground">{statusCounts[option.key]}</span>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Jobs Completed</p>
-                      <p className="text-2xl font-bold">{completedJobs.length}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="h-6 w-6 text-secondary" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Success Rate</p>
-                      <p className="text-2xl font-bold">
-                        {myJobsData?.jobs?.length > 0 
-                          ? Math.round((completedJobs.length / myJobsData.jobs.length) * 100)
-                          : 0}%
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="h-6 w-6 text-accent" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
