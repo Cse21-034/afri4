@@ -9,12 +9,14 @@ const app = express();
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = [
-      process.env.FRONTEND_URL || 'https://www.loadxafrica.com',
+      process.env.FRONTEND_URL,
+      'https://www.loadxafrica.com',
+      'https://loadxafrica.com',
       'http://localhost:3000',
       'https://localhost:3000',
-      'https://loadxafrica.com',
       'https://afri4-7fb5.vercel.app',
-    ];
+      'https://afri4-iota.vercel.app',
+    ].filter((o): o is string => Boolean(o));
     
     console.log(`[CORS DEBUG] Incoming request from origin: ${origin || 'NO ORIGIN'}`);
     console.log(`[CORS DEBUG] Allowed origins:`, allowedOrigins);
