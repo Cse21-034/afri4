@@ -47,19 +47,11 @@ export default function Analytics() {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8">
         {/* Header */}
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2" data-testid="analytics-title">
-              Analytics & Performance
-            </h1>
-            <p className="text-muted-foreground text-sm sm:text-base">Track your business performance and optimize operations</p>
-          </div>
-
-          <Link href="/dashboard">
-            <Button variant="outline" className="w-full sm:w-auto" data-testid="back-to-dashboard">
-              Back to Dashboard
-            </Button>
-          </Link>
+        <div className="mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2" data-testid="analytics-title">
+            Analytics & Performance
+          </h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Track your business performance and optimize operations</p>
         </div>
 
         {isLoading ? (
@@ -68,21 +60,21 @@ export default function Analytics() {
           </div>
         ) : (
           <>
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+            {/* KPI Cards -- 3 across even on mobile; icon/subtext only show once there's room at sm+ */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-6 mb-8">
               <Card data-testid="kpi-total-jobs">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-3 sm:p-6">
+                  <div className="flex flex-col items-center text-center gap-2 sm:flex-row sm:items-center sm:justify-between sm:text-left sm:gap-0">
                     <div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-[11px] sm:text-sm text-muted-foreground leading-tight">
                         {user.role === 'trucking_company' ? 'Jobs Taken' : 'Jobs Posted'}
                       </p>
-                      <p className="text-3xl font-bold text-foreground">{jobs.length}</p>
-                      <p className="text-sm text-secondary mt-1">
+                      <p className="text-lg sm:text-3xl font-bold text-foreground">{jobs.length}</p>
+                      <p className="hidden sm:block text-sm text-secondary mt-1">
                         {user.role === 'trucking_company' ? 'Total applications' : 'Total listings'}
                       </p>
                     </div>
-                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <div className="hidden sm:flex w-12 h-12 bg-primary/10 rounded-lg items-center justify-center">
                       <Package className="h-6 w-6 text-primary" />
                     </div>
                   </div>
@@ -90,14 +82,14 @@ export default function Analytics() {
               </Card>
 
               <Card data-testid="kpi-completed">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-3 sm:p-6">
+                  <div className="flex flex-col items-center text-center gap-2 sm:flex-row sm:items-center sm:justify-between sm:text-left sm:gap-0">
                     <div>
-                      <p className="text-sm text-muted-foreground">Completed</p>
-                      <p className="text-3xl font-bold text-foreground">{completedJobs.length}</p>
-                      <p className="text-sm text-secondary mt-1">{completionRate.toFixed(1)}% success rate</p>
+                      <p className="text-[11px] sm:text-sm text-muted-foreground leading-tight">Completed</p>
+                      <p className="text-lg sm:text-3xl font-bold text-foreground">{completedJobs.length}</p>
+                      <p className="hidden sm:block text-sm text-secondary mt-1">{completionRate.toFixed(1)}% success rate</p>
                     </div>
-                    <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center">
+                    <div className="hidden sm:flex w-12 h-12 bg-secondary/10 rounded-lg items-center justify-center">
                       <Target className="h-6 w-6 text-secondary" />
                     </div>
                   </div>
@@ -106,14 +98,14 @@ export default function Analytics() {
 
               {user.role === 'trucking_company' && (
                 <Card data-testid="kpi-delivery-time">
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex items-center justify-between">
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex flex-col items-center text-center gap-2 sm:flex-row sm:items-center sm:justify-between sm:text-left sm:gap-0">
                       <div>
-                        <p className="text-sm text-muted-foreground">Avg Delivery Time</p>
-                        <p className="text-3xl font-bold text-foreground">{averageDeliveryTime.toFixed(1)}</p>
-                        <p className="text-sm text-secondary mt-1">days per job</p>
+                        <p className="text-[11px] sm:text-sm text-muted-foreground leading-tight">Avg Delivery Time</p>
+                        <p className="text-lg sm:text-3xl font-bold text-foreground">{averageDeliveryTime.toFixed(1)}</p>
+                        <p className="hidden sm:block text-sm text-secondary mt-1">days per job</p>
                       </div>
-                      <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <div className="hidden sm:flex w-12 h-12 bg-primary/10 rounded-lg items-center justify-center">
                         <Clock className="h-6 w-6 text-primary" />
                       </div>
                     </div>
@@ -123,14 +115,14 @@ export default function Analytics() {
 
               {user.role === 'shipping_entity' && (
                 <Card data-testid="kpi-active-jobs">
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex items-center justify-between">
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex flex-col items-center text-center gap-2 sm:flex-row sm:items-center sm:justify-between sm:text-left sm:gap-0">
                       <div>
-                        <p className="text-sm text-muted-foreground">Active Jobs</p>
-                        <p className="text-3xl font-bold text-foreground">{activeJobs.length + availableJobs.length}</p>
-                        <p className="text-sm text-secondary mt-1">currently posted</p>
+                        <p className="text-[11px] sm:text-sm text-muted-foreground leading-tight">Active Jobs</p>
+                        <p className="text-lg sm:text-3xl font-bold text-foreground">{activeJobs.length + availableJobs.length}</p>
+                        <p className="hidden sm:block text-sm text-secondary mt-1">currently posted</p>
                       </div>
-                      <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                      <div className="hidden sm:flex w-12 h-12 bg-accent/10 rounded-lg items-center justify-center">
                         <TrendingUp className="h-6 w-6 text-accent" />
                       </div>
                     </div>
