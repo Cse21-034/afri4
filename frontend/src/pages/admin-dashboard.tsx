@@ -211,6 +211,19 @@ export default function AdminDashboard() {
     registerForm.setValue("cargoTypes", next);
   };
 
+  // /uploads requires a Bearer token a plain <a href> can't attach, and the relative
+  // path resolves against the frontend's own origin, not the backend that serves it --
+  // apiRequest fixes both (correct origin via VITE_API_URL, and the auth header).
+  const openDocument = async (fileUrl: string) => {
+    try {
+      const res = await apiRequest('GET', fileUrl);
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), '_blank', 'noopener,noreferrer');
+    } catch (error: any) {
+      toast({ title: "Couldn't open document", description: error.message, variant: "destructive" });
+    }
+  };
+
   if (!isAuthorized) {
     return <div className="min-h-screen flex items-center justify-center">Unauthorized</div>;
   }
@@ -499,17 +512,16 @@ export default function AdminDashboard() {
                             <h4 className="font-medium mb-2">Uploaded Documents:</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               {u.documents?.map((doc: any, i: number) => (
-                                <a
+                                <button
                                   key={i}
-                                  href={doc.fileUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-2 p-2 bg-muted/30 rounded hover:bg-muted/50"
+                                  type="button"
+                                  onClick={() => openDocument(doc.fileUrl)}
+                                  className="flex items-center gap-2 p-2 bg-muted/30 rounded hover:bg-muted/50 text-left"
                                 >
                                   <FileText className="h-4 w-4" />
                                   <span className="text-sm truncate">{doc.filename}</span>
                                   <Eye className="h-4 w-4 ml-auto flex-shrink-0" />
-                                </a>
+                                </button>
                               ))}
                             </div>
                           </div>
