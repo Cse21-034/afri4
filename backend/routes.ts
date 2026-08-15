@@ -629,11 +629,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== JOB ROUTES ====================
 
-  app.post('/api/jobs', authenticateToken, requireRole([UserRole.SHIPPING_ENTITY]), async (req: AuthRequest, res) => {
+  app.post('/api/jobs', authenticateToken, requireRole([UserRole.SHIPPING_ENTITY, UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
     try {
+      const isAdmin = req.user!.role === UserRole.SUPER_ADMIN || req.user!.role === UserRole.CUSTOMER_SUPPORT;
+
+      let shipperId = req.user!.id;
+      if (isAdmin) {
+        if (!req.body.shipperId) {
+          return res.status(400).json({ message: 'shipperId is required when posting a job as admin' });
+        }
+        const shipper = await storage.getUserById(Number(req.body.shipperId));
+        if (!shipper || shipper.role !== UserRole.SHIPPING_ENTITY) {
+          return res.status(400).json({ message: 'shipperId must belong to an existing shipping entity' });
+        }
+        shipperId = shipper.id;
+      }
+
       const jobData = insertJobSchema.parse({
         ...req.body,
-        shipperId: req.user!.id,
+        shipperId,
         pickupDate: new Date(req.body.pickupDate),
         deliveryDeadline: new Date(req.body.deliveryDeadline)
       });
@@ -1091,6 +1105,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Admin verify documents error:', error);
       res.status(500).json({ message: 'Failed to process document verification' });
+    }
+  });
+
+  // Admin: register a user on their behalf (e.g. phone intake for a trucker without a smartphone).
+  // Skips the email-verification step entirely since admin is vouching for the account.
+  app.post('/api/admin/register-user', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
+    try {
+      const { type, ...body } = req.body;
+      if (type !== 'trucking' && type !== 'shipping') {
+        return res.status(400).json({ message: 'type must be "trucking" or "shipping"' });
+      }
+
+      const validatedData = type === 'trucking'
+        ? registerTruckingSchema.parse(body)
+        : registerShippingSchema.parse(body);
+
+      const existingByPhone = await storage.getUserByPhoneNumber(validatedData.phoneNumber);
+      if (existingByPhone) {
+        return res.status(409).json({ message: 'Phone number already registered' });
+      }
+      if (validatedData.email) {
+        const existingByEmail = await storage.getUserByEmail(validatedData.email);
+        if (existingByEmail) {
+          return res.status(409).json({ message: 'Email already registered' });
+        }
+      }
+
+      const user = await storage.createUser({
+        ...validatedData,
+        role: type === 'trucking' ? UserRole.TRUCKING_COMPANY : UserRole.SHIPPING_ENTITY,
+        emailVerified: true, // admin-verified intake, no email link to click
+        subscriptionStatus: type === 'trucking' ? 'trial' : 'active'
+      } as any);
+
+      res.status(201).json({
+        message: 'User registered successfully',
+        user: { id: user.id, companyName: user.companyName, role: user.role }
+      });
+    } catch (error: any) {
+      console.error('Admin register-user error:', error);
+      res.status(400).json({ message: error.message || 'Registration failed' });
     }
   });
 

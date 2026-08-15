@@ -7,174 +7,239 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/ui/navbar";
-import { Users, Package, DollarSign, AlertTriangle, TrendingUp, FileText, MessageSquare, Settings, CheckCircle, XCircle, Clock, Eye } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Users, Package, Clock as ClockIcon, AlertTriangle, TrendingUp, FileText, MessageSquare,
+  Settings, CheckCircle, XCircle, Clock, Eye, UserPlus, Plus
+} from "lucide-react";
+
+const CARGO_TYPE_OPTIONS = [
+  { value: "general", label: "General Cargo" },
+  { value: "refrigerated", label: "Refrigerated Goods" },
+  { value: "hazardous", label: "Hazardous Materials" },
+  { value: "bulk", label: "Bulk Cargo" },
+  { value: "containers", label: "Containers (20ft/40ft)" },
+  { value: "livestock", label: "Livestock" },
+  { value: "agricultural", label: "Agricultural Products" },
+  { value: "mining", label: "Mining Equipment & Minerals" },
+  { value: "construction", label: "Construction Materials" },
+  { value: "vehicles", label: "Vehicles & Machinery" },
+  { value: "electronics", label: "Electronics" },
+  { value: "textiles", label: "Textiles & Clothing" },
+  { value: "pharmaceuticals", label: "Pharmaceuticals" },
+  { value: "perishables", label: "Perishable Goods" },
+  { value: "oversized", label: "Oversized/Heavy Machinery" },
+  { value: "liquids", label: "Liquids/Tanker" },
+];
+
+const COUNTRY_OPTIONS = [
+  { value: "AGO", label: "Angola" }, { value: "BWA", label: "Botswana" },
+  { value: "COM", label: "Comoros" }, { value: "COD", label: "DR Congo" },
+  { value: "SWZ", label: "Eswatini" }, { value: "LSO", label: "Lesotho" },
+  { value: "MDG", label: "Madagascar" }, { value: "MWI", label: "Malawi" },
+  { value: "MUS", label: "Mauritius" }, { value: "MOZ", label: "Mozambique" },
+  { value: "NAM", label: "Namibia" }, { value: "SYC", label: "Seychelles" },
+  { value: "ZAF", label: "South Africa" }, { value: "TZA", label: "Tanzania" },
+  { value: "ZMB", label: "Zambia" }, { value: "ZWE", label: "Zimbabwe" },
+];
+
+const passwordSchema = z.string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Must contain an uppercase letter")
+  .regex(/[a-z]/, "Must contain a lowercase letter")
+  .regex(/[0-9]/, "Must contain a number")
+  .regex(/[^A-Za-z0-9]/, "Must contain a special character");
+
+const registerUserSchema = z.object({
+  email: z.string().email("Invalid email address").optional().or(z.literal('')),
+  password: passwordSchema,
+  contactPersonName: z.string().min(1, "Contact person name is required"),
+  companyName: z.string().min(1, "Company name is required"),
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  physicalAddress: z.string().min(1, "Physical address is required"),
+  businessRegistrationNumber: z.string().optional(),
+  fleetSize: z.number().optional(),
+  cargoTypes: z.array(z.string()).optional(),
+  country: z.string().default("BWA"),
+});
+type RegisterUserFormData = z.infer<typeof registerUserSchema>;
+
+const jobSchema = z.object({
+  shipperId: z.string().min(1, "Select a shipping entity"),
+  cargoType: z.string().min(1, "Cargo type is required"),
+  cargoWeight: z.number().min(1, "Weight must be greater than 0"),
+  cargoVolume: z.number().min(1, "Volume must be greater than 0"),
+  industry: z.string().min(1, "Industry is required"),
+  pickupAddress: z.string().min(1, "Pickup address is required"),
+  deliveryAddress: z.string().min(1, "Delivery address is required"),
+  pickupCountry: z.string().min(1, "Pickup country is required"),
+  deliveryCountry: z.string().min(1, "Delivery country is required"),
+  pickupDate: z.string().min(1, "Pickup date is required"),
+  deliveryDeadline: z.string().min(1, "Delivery deadline is required"),
+  specialHandling: z.string().optional(),
+  insuranceRequired: z.boolean().default(false),
+  notes: z.string().optional(),
+});
+type JobFormData = z.infer<typeof jobSchema>;
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
-  const [userFilters, setUserFilters] = useState({ role: 'all', verified: 'all', hasDocuments: 'all' });
+  const [userFilters, setUserFilters] = useState({ role: 'all', verified: 'all' });
   const [disputeFilters, setDisputeFilters] = useState({ status: 'all' });
+  const [registerType, setRegisterType] = useState<'trucking' | 'shipping'>('trucking');
+  const [selectedCargoTypes, setSelectedCargoTypes] = useState<string[]>([]);
 
-  // Mock data for now
-  const dashboardData = {
-    stats: {
-      totalUsers: 1247,
-      truckingCompanies: 789,
-      shippingEntities: 458,
-      totalJobs: 3456,
-      activeJobs: 234,
-      completedJobs: 3122,
-      monthlyRevenue: 234567
-    }
-  };
-  const isLoading = false;
+  const isAuthorized = !!user && (user.role === 'super_admin' || user.role === 'customer_support');
 
-  const usersData = {
-    users: [
-      {
-        id: 1,
-        companyName: "Swift Transport Ltd",
-        email: "admin@swifttransport.co.za",
-        role: "trucking_company",
-        verified: true,
-        documents: [{filename: "license.pdf"}],
-        createdAt: "2024-01-15T10:00:00Z"
-      },
-      {
-        id: 2,
-        companyName: "African Logistics Co",
-        email: "info@africanlogistics.bw",
-        role: "shipping_entity",
-        verified: false,
-        documents: [],
-        createdAt: "2024-02-10T14:30:00Z"
-      },
-      {
-        id: 3,
-        companyName: "Botswana Freight Services",
-        email: "contact@bwfreight.co.bw",
-        role: "trucking_company",
-        verified: true,
-        documents: [{filename: "permit.pdf"}, {filename: "insurance.pdf"}],
-        createdAt: "2024-01-28T08:15:00Z"
-      }
-    ]
-  };
-  const usersLoading = false;
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ['/api/admin/dashboard'],
+    queryFn: async () => (await apiRequest('GET', '/api/admin/dashboard')).json(),
+    enabled: isAuthorized,
+  });
 
-  const pendingDocumentsData = {
-    users: [
-      {
-        id: 4,
-        companyName: "Namibian Trucking Corp",
-        email: "admin@namtrucking.na",
-        documents: [{filename: "business_license.pdf"}, {filename: "vehicle_permit.pdf"}],
-        updatedAt: "2024-03-10T16:45:00Z"
-      },
-      {
-        id: 5,
-        companyName: "Zimbabwe Transport Solutions",
-        email: "info@zimtransport.zw",
-        documents: [{filename: "operating_license.pdf"}],
-        updatedAt: "2024-03-12T09:30:00Z"
-      }
-    ]
-  };
-  const pendingLoading = false;
-
-  const disputesData = {
-    disputes: [
-      {
-        id: 1,
-        jobId: 123,
-        title: "Payment Dispute",
-        description: "Carrier claims payment was not received for completed delivery from Gaborone to Cape Town.",
-        status: "open",
-        createdAt: "2024-03-14T12:00:00Z",
-        adminId: null,
-        resolution: null
-      },
-      {
-        id: 2,
-        jobId: 456,
-        title: "Delivery Delay Complaint",
-        description: "Shipper reports that goods arrived 3 days late, causing business disruption.",
-        status: "in_review",
-        createdAt: "2024-03-13T15:30:00Z",
-        adminId: user?.id,
-        resolution: null
-      },
-      {
-        id: 3,
-        jobId: 789,
-        title: "Damaged Goods Claim",
-        description: "Electronics shipment arrived with water damage, insurance claim disputed.",
-        status: "resolved",
-        createdAt: "2024-03-10T11:15:00Z",
-        adminId: 1,
-        resolution: "Insurance claim approved for BWP 15,000. Carrier found not liable due to weather conditions beyond control."
-      }
-    ]
-  };
-  const disputesLoading = false;
-
-  // Mock mutation handlers
-  const verifyDocumentsMutation = {
-    mutate: ({ userId, approved }: { userId: number; approved: boolean }) => {
-      toast({ title: approved ? "Documents approved successfully" : "Documents rejected" });
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: ['/api/admin/users', userFilters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (userFilters.role !== 'all') params.append('role', userFilters.role);
+      if (userFilters.verified !== 'all') params.append('verified', userFilters.verified);
+      return (await apiRequest('GET', `/api/admin/users?${params.toString()}`)).json();
     },
-    isPending: false
-  };
+    enabled: isAuthorized,
+  });
 
-  const assignDisputeMutation = {
-    mutate: (disputeId: number) => {
+  const { data: shippingEntitiesData } = useQuery({
+    queryKey: ['/api/admin/users', 'shipping_entity'],
+    queryFn: async () => (await apiRequest('GET', '/api/admin/users?role=shipping_entity')).json(),
+    enabled: isAuthorized,
+  });
+
+  const { data: pendingDocumentsData, isLoading: pendingLoading } = useQuery({
+    queryKey: ['/api/admin/users/pending-documents'],
+    queryFn: async () => (await apiRequest('GET', '/api/admin/users/pending-documents')).json(),
+    enabled: isAuthorized,
+  });
+
+  const { data: disputesData, isLoading: disputesLoading } = useQuery({
+    queryKey: ['/api/admin/disputes', disputeFilters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (disputeFilters.status !== 'all') params.append('status', disputeFilters.status);
+      return (await apiRequest('GET', `/api/admin/disputes?${params.toString()}`)).json();
+    },
+    enabled: isAuthorized,
+  });
+
+  const verifyDocumentsMutation = useMutation({
+    mutationFn: async ({ userId, approved }: { userId: number; approved: boolean }) => {
+      return (await apiRequest('POST', `/api/admin/users/${userId}/verify-documents`, { approved })).json();
+    },
+    onSuccess: (data) => {
+      toast({ title: data.message });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users/pending-documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+    },
+    onError: (error: Error) => toast({ title: "Error", description: error.message, variant: "destructive" }),
+  });
+
+  const assignDisputeMutation = useMutation({
+    mutationFn: async (disputeId: number) => (await apiRequest('POST', `/api/admin/disputes/${disputeId}/assign`)).json(),
+    onSuccess: () => {
       toast({ title: "Dispute assigned successfully" });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/disputes'] });
     },
-    isPending: false
-  };
+    onError: (error: Error) => toast({ title: "Error", description: error.message, variant: "destructive" }),
+  });
 
-  const resolveDisputeMutation = {
-    mutate: ({ disputeId, resolution }: { disputeId: number; resolution: string }) => {
+  const resolveDisputeMutation = useMutation({
+    mutationFn: async ({ disputeId, resolution }: { disputeId: number; resolution: string }) =>
+      (await apiRequest('POST', `/api/admin/disputes/${disputeId}/resolve`, { resolution })).json(),
+    onSuccess: () => {
       toast({ title: "Dispute resolved successfully" });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/disputes'] });
     },
-    isPending: false
+    onError: (error: Error) => toast({ title: "Error", description: error.message, variant: "destructive" }),
+  });
+
+  const registerForm = useForm<RegisterUserFormData>({
+    resolver: zodResolver(registerUserSchema),
+    defaultValues: { country: "BWA" },
+  });
+
+  const registerUserMutation = useMutation({
+    mutationFn: async (data: RegisterUserFormData) =>
+      (await apiRequest('POST', '/api/admin/register-user', { ...data, type: registerType })).json(),
+    onSuccess: (data) => {
+      toast({ title: "User registered", description: data.message });
+      registerForm.reset({ country: "BWA" });
+      setSelectedCargoTypes([]);
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
+    },
+    onError: (error: Error) => toast({ title: "Registration failed", description: error.message, variant: "destructive" }),
+  });
+
+  const jobForm = useForm<JobFormData>({
+    resolver: zodResolver(jobSchema),
+    defaultValues: { pickupCountry: "BWA", deliveryCountry: "BWA", insuranceRequired: false },
+  });
+
+  const postJobMutation = useMutation({
+    mutationFn: async (data: JobFormData) => (await apiRequest('POST', '/api/jobs', data)).json(),
+    onSuccess: () => {
+      toast({ title: "Job posted successfully" });
+      jobForm.reset({ pickupCountry: "BWA", deliveryCountry: "BWA", insuranceRequired: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
+    },
+    onError: (error: Error) => toast({ title: "Failed to post job", description: error.message, variant: "destructive" }),
+  });
+
+  const handleCargoTypeToggle = (type: string, checked: boolean) => {
+    const next = checked ? [...selectedCargoTypes, type] : selectedCargoTypes.filter((t) => t !== type);
+    setSelectedCargoTypes(next);
+    registerForm.setValue("cargoTypes", next);
   };
 
-  if (!user || (user.role !== 'super_admin' && user.role !== 'customer_support')) {
+  if (!isAuthorized) {
     return <div className="min-h-screen flex items-center justify-center">Unauthorized</div>;
   }
 
-  const stats = dashboardData?.stats || {};
+  const stats: any = dashboardData?.stats || {};
+  const recentUsers = (usersData?.users || []).slice(0, 5);
 
   return (
     <div className="min-h-screen bg-background" data-testid="admin-dashboard">
       <Navbar />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="admin-title">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2" data-testid="admin-title">
             Admin Dashboard
           </h1>
           <p className="text-muted-foreground">Platform management and oversight tools</p>
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
           <Card data-testid="stat-total-users">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Users</p>
                   <p className="text-3xl font-bold text-foreground">
-                    {isLoading ? "..." : stats.totalUsers?.toLocaleString() || "0"}
+                    {isLoading ? "..." : (stats.totalUsers ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-sm text-green-600 mt-1">↗ +24 today</p>
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                   <Users className="h-6 w-6 text-primary" />
@@ -184,14 +249,13 @@ export default function AdminDashboard() {
           </Card>
 
           <Card data-testid="stat-active-jobs">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Active Jobs</p>
                   <p className="text-3xl font-bold text-foreground">
-                    {isLoading ? "..." : stats.activeJobs?.toLocaleString() || "0"}
+                    {isLoading ? "..." : (stats.activeJobs ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-sm text-green-600 mt-1">↗ +8 today</p>
                 </div>
                 <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center">
                   <Package className="h-6 w-6 text-secondary" />
@@ -200,30 +264,30 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
-          <Card data-testid="stat-monthly-revenue">
-            <CardContent className="p-6">
+          <Card data-testid="stat-total-jobs">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Monthly Revenue</p>
+                  <p className="text-sm text-muted-foreground">Total Jobs</p>
                   <p className="text-3xl font-bold text-foreground">
-                    BWP {isLoading ? "..." : (stats.monthlyRevenue || 0).toLocaleString()}
+                    {isLoading ? "..." : (stats.totalJobs ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-sm text-green-600 mt-1">↗ +12% vs last month</p>
                 </div>
                 <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-accent" />
+                  <TrendingUp className="h-6 w-6 text-accent" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card data-testid="stat-support-tickets">
-            <CardContent className="p-6">
+          <Card data-testid="stat-pending-verification">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Support Tickets</p>
-                  <p className="text-3xl font-bold text-foreground">23</p>
-                  <p className="text-sm text-accent mt-1">5 urgent</p>
+                  <p className="text-sm text-muted-foreground">Pending Verification</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {pendingLoading ? "..." : (pendingDocumentsData?.users?.length ?? 0)}
+                  </p>
                 </div>
                 <div className="w-12 h-12 bg-destructive/10 rounded-lg flex items-center justify-center">
                   <AlertTriangle className="h-6 w-6 text-destructive" />
@@ -235,147 +299,86 @@ export default function AdminDashboard() {
 
         {/* Admin Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} data-testid="admin-tabs">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="flex flex-wrap h-auto gap-1 justify-start">
             <TabsTrigger value="overview" className="flex items-center gap-2" data-testid="tab-overview">
-              <TrendingUp className="h-4 w-4" />
-              Overview
+              <TrendingUp className="h-4 w-4" /> Overview
             </TabsTrigger>
             <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
-              <Users className="h-4 w-4" />
-              Users
+              <Users className="h-4 w-4" /> Users
             </TabsTrigger>
             <TabsTrigger value="verification" className="flex items-center gap-2" data-testid="tab-verification">
-              <FileText className="h-4 w-4" />
-              Verification
+              <FileText className="h-4 w-4" /> Verification
             </TabsTrigger>
             <TabsTrigger value="disputes" className="flex items-center gap-2" data-testid="tab-disputes">
-              <MessageSquare className="h-4 w-4" />
-              Disputes
+              <MessageSquare className="h-4 w-4" /> Disputes
+            </TabsTrigger>
+            <TabsTrigger value="register" className="flex items-center gap-2" data-testid="tab-register">
+              <UserPlus className="h-4 w-4" /> Register User
+            </TabsTrigger>
+            <TabsTrigger value="post-job" className="flex items-center gap-2" data-testid="tab-post-job">
+              <Plus className="h-4 w-4" /> Post Job
             </TabsTrigger>
             <TabsTrigger value="system" className="flex items-center gap-2" data-testid="tab-system">
-              <Settings className="h-4 w-4" />
-              System
+              <Settings className="h-4 w-4" /> System
             </TabsTrigger>
           </TabsList>
 
+          {/* OVERVIEW */}
           <TabsContent value="overview" className="mt-6" data-testid="overview-content">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Recent Registrations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                          <Users className="h-4 w-4 text-primary-foreground" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">Swift Logistics Ltd</p>
-                          <p className="text-xs text-muted-foreground">2 hours ago</p>
-                        </div>
-                      </div>
-                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                        Pending Verification
-                      </Badge>
-                    </div>
-                    
-                    <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
-                          <Users className="h-4 w-4 text-secondary-foreground" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">African Freight Co</p>
-                          <p className="text-xs text-muted-foreground">5 hours ago</p>
-                        </div>
-                      </div>
-                      <Badge className="bg-green-100 text-green-800">
-                        Verified
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* System Alerts */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5" />
-                    System Alerts
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <div className="flex items-start space-x-2">
-                        <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-red-800 text-sm">Payment Gateway Issue</p>
-                          
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div className="flex items-start space-x-2">
-                        <FileText className="h-5 w-5 text-yellow-500 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-yellow-800 text-sm">High Document Queue</p>
-                          <p className="text-xs text-yellow-600">47 documents awaiting verification</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-start space-x-2">
-                        <Settings className="h-5 w-5 text-blue-500 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-blue-800 text-sm">Scheduled Maintenance</p>
-                          <p className="text-xs text-blue-600">Database backup scheduled for 2 AM GMT</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Platform Statistics */}
-            <Card className="mt-8">
+            <Card>
               <CardHeader>
-                <CardTitle>Platform Statistics</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" /> Recent Registrations
+                </CardTitle>
               </CardHeader>
+              <CardContent>
+                {usersLoading ? (
+                  <p className="text-muted-foreground text-sm">Loading...</p>
+                ) : recentUsers.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No users yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {recentUsers.map((u: any) => (
+                      <div key={u.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                            <Users className="h-4 w-4 text-primary-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{u.companyName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(u.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={u.verified ? 'default' : 'secondary'} className="flex-shrink-0">
+                          {u.verified ? 'Verified' : 'Pending'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="mt-8">
+              <CardHeader><CardTitle>Platform Statistics</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">
-                      {stats.truckingCompanies || 0}
-                    </p>
+                    <p className="text-2xl font-bold text-foreground">{stats.truckingCompanies || 0}</p>
                     <p className="text-sm text-muted-foreground">Trucking Companies</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">
-                      {stats.shippingEntities || 0}
-                    </p>
+                    <p className="text-2xl font-bold text-foreground">{stats.shippingEntities || 0}</p>
                     <p className="text-sm text-muted-foreground">Shipping Entities</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">
-                      {stats.totalJobs || 0}
-                    </p>
+                    <p className="text-2xl font-bold text-foreground">{stats.totalJobs || 0}</p>
                     <p className="text-sm text-muted-foreground">Total Jobs</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">
-                      {stats.completedJobs || 0}
-                    </p>
+                    <p className="text-2xl font-bold text-foreground">{stats.completedJobs || 0}</p>
                     <p className="text-sm text-muted-foreground">Completed Jobs</p>
                   </div>
                 </div>
@@ -383,26 +386,23 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* USERS */}
           <TabsContent value="users" className="mt-6" data-testid="users-content">
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                   <CardTitle>User Management</CardTitle>
                   <div className="flex gap-2">
-                    <Select value={userFilters.role} onValueChange={(value) => setUserFilters({...userFilters, role: value})}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Filter by role" />
-                      </SelectTrigger>
+                    <Select value={userFilters.role} onValueChange={(v) => setUserFilters({ ...userFilters, role: v })}>
+                      <SelectTrigger className="w-[160px]" data-testid="filter-user-role"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Roles</SelectItem>
-                        <SelectItem value="trucking_company">Trucking Companies</SelectItem>
-                        <SelectItem value="shipping_entity">Shipping Entities</SelectItem>
+                        <SelectItem value="trucking_company">Trucking</SelectItem>
+                        <SelectItem value="shipping_entity">Shipping</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={userFilters.verified} onValueChange={(value) => setUserFilters({...userFilters, verified: value})}>
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="Verification" />
-                      </SelectTrigger>
+                    <Select value={userFilters.verified} onValueChange={(v) => setUserFilters({ ...userFilters, verified: v })}>
+                      <SelectTrigger className="w-[140px]" data-testid="filter-user-verified"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Users</SelectItem>
                         <SelectItem value="true">Verified</SelectItem>
@@ -412,46 +412,44 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-x-auto">
                 {usersLoading ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">Loading users...</p>
-                  </div>
+                  <p className="text-muted-foreground text-center py-8">Loading users...</p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Company Name</TableHead>
-                        <TableHead>Email</TableHead>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Contact</TableHead>
                         <TableHead>Role</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Documents</TableHead>
+                        <TableHead>Docs</TableHead>
                         <TableHead>Joined</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {usersData?.users?.map((user: any) => (
-                        <TableRow key={user.id}>
-                          <TableCell className="font-medium">{user.companyName}</TableCell>
-                          <TableCell>{user.email}</TableCell>
+                      {(usersData?.users || []).map((u: any) => (
+                        <TableRow key={u.id}>
+                          <TableCell className="font-medium">{u.companyName}</TableCell>
+                          <TableCell>{u.email || u.phoneNumber}</TableCell>
                           <TableCell>
-                            <Badge variant={user.role === 'trucking_company' ? 'default' : 'secondary'}>
-                              {user.role === 'trucking_company' ? 'Trucking' : 'Shipping'}
+                            <Badge variant={u.role === 'trucking_company' ? 'default' : 'secondary'}>
+                              {u.role === 'trucking_company' ? 'Trucking' : u.role === 'shipping_entity' ? 'Shipping' : u.role}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={user.verified ? 'default' : 'destructive'}>
-                              {user.verified ? 'Verified' : 'Unverified'}
+                            <Badge variant={u.verified ? 'default' : 'destructive'}>
+                              {u.verified ? 'Verified' : 'Unverified'}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {user.documents && user.documents.length > 0 ? (
-                              <Badge variant="secondary">{user.documents.length} files</Badge>
+                            {u.documents?.length > 0 ? (
+                              <Badge variant="secondary">{u.documents.length} files</Badge>
                             ) : (
-                              <span className="text-muted-foreground">No documents</span>
+                              <span className="text-muted-foreground text-sm">None</span>
                             )}
                           </TableCell>
-                          <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(u.createdAt).toLocaleDateString()}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -461,79 +459,77 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* VERIFICATION */}
           <TabsContent value="verification" className="mt-6" data-testid="verification-content">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Document Verification Queue
-                  {pendingDocumentsData?.users?.length > 0 && (
+                  <FileText className="h-5 w-5" /> Document Verification Queue
+                  {(pendingDocumentsData?.users?.length ?? 0) > 0 && (
                     <Badge variant="destructive">{pendingDocumentsData.users.length} pending</Badge>
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {pendingLoading ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">Loading pending documents...</p>
-                  </div>
-                ) : pendingDocumentsData?.users?.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Loading...</p>
+                ) : (pendingDocumentsData?.users?.length ?? 0) === 0 ? (
                   <div className="text-center py-8">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">All Caught Up!</h3>
-                    <p className="text-muted-foreground">
-                      No documents pending verification.
-                    </p>
+                    <p className="text-muted-foreground">No documents pending verification.</p>
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {pendingDocumentsData.users.map((user: any) => (
-                      <Card key={user.id} className="border-l-4 border-l-orange-500">
-                        <CardContent className="p-6">
-                          <div className="flex justify-between items-start mb-4">
+                    {pendingDocumentsData.users.map((u: any) => (
+                      <Card key={u.id} className="border-l-4 border-l-orange-500">
+                        <CardContent className="p-4 sm:p-6">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-4">
                             <div>
-                              <h3 className="font-semibold text-lg">{user.companyName}</h3>
-                              <p className="text-muted-foreground">{user.email}</p>
+                              <h3 className="font-semibold text-lg">{u.companyName}</h3>
+                              <p className="text-muted-foreground">{u.email || u.phoneNumber}</p>
                               <p className="text-sm text-muted-foreground mt-1">
-                                Submitted: {new Date(user.updatedAt).toLocaleDateString()}
+                                Submitted: {new Date(u.updatedAt).toLocaleDateString()}
                               </p>
                             </div>
-                            <Badge className="bg-orange-100 text-orange-800">Pending Review</Badge>
+                            <Badge className="bg-orange-100 text-orange-800 w-fit">Pending Review</Badge>
                           </div>
-                          
+
                           <div className="mb-4">
                             <h4 className="font-medium mb-2">Uploaded Documents:</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {user.documents?.map((doc: any, index: number) => (
-                                <div key={index} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                              {u.documents?.map((doc: any, i: number) => (
+                                <a
+                                  key={i}
+                                  href={doc.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 p-2 bg-muted/30 rounded hover:bg-muted/50"
+                                >
                                   <FileText className="h-4 w-4" />
-                                  <span className="text-sm">{doc.filename}</span>
-                                  <Button variant="ghost" size="sm" className="ml-auto">
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </div>
+                                  <span className="text-sm truncate">{doc.filename}</span>
+                                  <Eye className="h-4 w-4 ml-auto flex-shrink-0" />
+                                </a>
                               ))}
                             </div>
                           </div>
-                          
+
                           <div className="flex gap-2">
                             <Button
-                              onClick={() => verifyDocumentsMutation.mutate({ userId: user.id, approved: true })}
+                              onClick={() => verifyDocumentsMutation.mutate({ userId: u.id, approved: true })}
                               disabled={verifyDocumentsMutation.isPending}
                               className="bg-green-600 hover:bg-green-700"
-                              data-testid={`approve-documents-${user.id}`}
+                              data-testid={`approve-documents-${u.id}`}
                             >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Approve
+                              <CheckCircle className="h-4 w-4 mr-2" /> Approve
                             </Button>
                             <Button
-                              onClick={() => verifyDocumentsMutation.mutate({ userId: user.id, approved: false })}
+                              onClick={() => verifyDocumentsMutation.mutate({ userId: u.id, approved: false })}
                               disabled={verifyDocumentsMutation.isPending}
                               variant="destructive"
-                              data-testid={`reject-documents-${user.id}`}
+                              data-testid={`reject-documents-${u.id}`}
                             >
-                              <XCircle className="h-4 w-4 mr-2" />
-                              Reject
+                              <XCircle className="h-4 w-4 mr-2" /> Reject
                             </Button>
                           </div>
                         </CardContent>
@@ -545,18 +541,16 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* DISPUTES */}
           <TabsContent value="disputes" className="mt-6" data-testid="disputes-content">
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                   <CardTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
-                    Dispute Resolution
+                    <MessageSquare className="h-5 w-5" /> Dispute Resolution
                   </CardTitle>
-                  <Select value={disputeFilters.status} onValueChange={(value) => setDisputeFilters({...disputeFilters, status: value})}>
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
+                  <Select value={disputeFilters.status} onValueChange={(v) => setDisputeFilters({ ...disputeFilters, status: v })}>
+                    <SelectTrigger className="w-[160px]" data-testid="filter-dispute-status"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Disputes</SelectItem>
                       <SelectItem value="open">Open</SelectItem>
@@ -569,16 +563,12 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 {disputesLoading ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">Loading disputes...</p>
-                  </div>
-                ) : disputesData?.disputes?.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Loading disputes...</p>
+                ) : (disputesData?.disputes?.length ?? 0) === 0 ? (
                   <div className="text-center py-8">
                     <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No Disputes Found</h3>
-                    <p className="text-muted-foreground">
-                      No disputes match your current filters.
-                    </p>
+                    <p className="text-muted-foreground">No disputes match your current filters.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -586,11 +576,10 @@ export default function AdminDashboard() {
                       <Card key={dispute.id} className={`border-l-4 ${
                         dispute.status === 'open' ? 'border-l-red-500' :
                         dispute.status === 'in_review' ? 'border-l-yellow-500' :
-                        dispute.status === 'resolved' ? 'border-l-green-500' :
-                        'border-l-gray-500'
+                        dispute.status === 'resolved' ? 'border-l-green-500' : 'border-l-gray-500'
                       }`}>
                         <CardContent className="p-4">
-                          <div className="flex justify-between items-start mb-3">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
                             <div>
                               <h3 className="font-semibold">{dispute.title}</h3>
                               <p className="text-sm text-muted-foreground">
@@ -602,23 +591,21 @@ export default function AdminDashboard() {
                             </div>
                             <Badge variant={
                               dispute.status === 'open' ? 'destructive' :
-                              dispute.status === 'in_review' ? 'default' :
-                              dispute.status === 'resolved' ? 'default' :
-                              'secondary'
-                            }>
+                              dispute.status === 'resolved' ? 'default' : 'secondary'
+                            } className="w-fit">
                               {dispute.status.replace('_', ' ').toUpperCase()}
                             </Badge>
                           </div>
-                          
+
                           <p className="text-sm mb-3">{dispute.description}</p>
-                          
+
                           {dispute.status === 'resolved' && dispute.resolution && (
                             <div className="bg-green-50 p-3 rounded mb-3">
                               <p className="text-sm font-medium text-green-800">Resolution:</p>
                               <p className="text-sm text-green-700">{dispute.resolution}</p>
                             </div>
                           )}
-                          
+
                           <div className="flex gap-2">
                             {dispute.status === 'open' && (
                               <Button
@@ -626,24 +613,20 @@ export default function AdminDashboard() {
                                 disabled={assignDisputeMutation.isPending}
                                 data-testid={`assign-dispute-${dispute.id}`}
                               >
-                                <Clock className="h-4 w-4 mr-2" />
-                                Assign to Me
+                                <Clock className="h-4 w-4 mr-2" /> Assign to Me
                               </Button>
                             )}
                             {dispute.status === 'in_review' && dispute.adminId === user?.id && (
                               <Button
                                 onClick={() => {
                                   const resolution = prompt('Enter resolution:');
-                                  if (resolution) {
-                                    resolveDisputeMutation.mutate({ disputeId: dispute.id, resolution });
-                                  }
+                                  if (resolution) resolveDisputeMutation.mutate({ disputeId: dispute.id, resolution });
                                 }}
                                 disabled={resolveDisputeMutation.isPending}
                                 className="bg-green-600 hover:bg-green-700"
                                 data-testid={`resolve-dispute-${dispute.id}`}
                               >
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Resolve Dispute
+                                <CheckCircle className="h-4 w-4 mr-2" /> Resolve
                               </Button>
                             )}
                           </div>
@@ -656,21 +639,289 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="system" className="mt-6" data-testid="system-content">
+          {/* REGISTER USER */}
+          <TabsContent value="register" className="mt-6" data-testid="register-content">
             <Card>
               <CardHeader>
-                <CardTitle>System Logs</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5" /> Register a New User
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  For phone/in-person intake. Skips email verification -- the account is usable immediately.
+                </p>
               </CardHeader>
+              <CardContent>
+                <div className="flex gap-2 mb-6">
+                  <Button
+                    type="button"
+                    variant={registerType === 'trucking' ? 'default' : 'outline'}
+                    onClick={() => setRegisterType('trucking')}
+                    data-testid="register-type-trucking"
+                  >
+                    Trucking Company
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={registerType === 'shipping' ? 'default' : 'outline'}
+                    onClick={() => setRegisterType('shipping')}
+                    data-testid="register-type-shipping"
+                  >
+                    Shipping Entity
+                  </Button>
+                </div>
+
+                <form onSubmit={registerForm.handleSubmit((data) => registerUserMutation.mutate(data))} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="admin-company-name">Company Name</Label>
+                      <Input id="admin-company-name" {...registerForm.register("companyName")} data-testid="input-admin-company-name" />
+                      {registerForm.formState.errors.companyName && (
+                        <p className="text-destructive text-sm mt-1">{registerForm.formState.errors.companyName.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-contact-person">Contact Person</Label>
+                      <Input id="admin-contact-person" {...registerForm.register("contactPersonName")} data-testid="input-admin-contact-person" />
+                      {registerForm.formState.errors.contactPersonName && (
+                        <p className="text-destructive text-sm mt-1">{registerForm.formState.errors.contactPersonName.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-email">Email Address (Optional)</Label>
+                      <Input id="admin-email" type="email" {...registerForm.register("email")} data-testid="input-admin-email" />
+                      {registerForm.formState.errors.email && (
+                        <p className="text-destructive text-sm mt-1">{registerForm.formState.errors.email.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-phone">Phone Number</Label>
+                      <Input id="admin-phone" {...registerForm.register("phoneNumber")} placeholder="+267 xxx xxxx" data-testid="input-admin-phone" />
+                      {registerForm.formState.errors.phoneNumber && (
+                        <p className="text-destructive text-sm mt-1">{registerForm.formState.errors.phoneNumber.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-password">Temporary Password</Label>
+                      <Input id="admin-password" type="password" {...registerForm.register("password")} data-testid="input-admin-password" />
+                      {registerForm.formState.errors.password && (
+                        <p className="text-destructive text-sm mt-1">{registerForm.formState.errors.password.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-country">Country</Label>
+                      <Select onValueChange={(v) => registerForm.setValue("country", v)} defaultValue="BWA">
+                        <SelectTrigger id="admin-country" data-testid="select-admin-country"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {COUNTRY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="admin-address">Physical Address</Label>
+                      <Textarea id="admin-address" {...registerForm.register("physicalAddress")} data-testid="textarea-admin-address" />
+                      {registerForm.formState.errors.physicalAddress && (
+                        <p className="text-destructive text-sm mt-1">{registerForm.formState.errors.physicalAddress.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="admin-reg-number">Business Registration Number {registerType === 'shipping' && '(Optional)'}</Label>
+                      <Input id="admin-reg-number" {...registerForm.register("businessRegistrationNumber")} data-testid="input-admin-reg-number" />
+                    </div>
+                    {registerType === 'trucking' && (
+                      <div>
+                        <Label htmlFor="admin-fleet-size">Fleet Size</Label>
+                        <Input
+                          id="admin-fleet-size"
+                          type="number"
+                          {...registerForm.register("fleetSize", { valueAsNumber: true })}
+                          data-testid="input-admin-fleet-size"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {registerType === 'trucking' && (
+                    <div>
+                      <Label className="mb-3 block">Cargo Types</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {CARGO_TYPE_OPTIONS.map((type) => (
+                          <div key={type.value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`admin-cargo-${type.value}`}
+                              checked={selectedCargoTypes.includes(type.value)}
+                              onCheckedChange={(checked) => handleCargoTypeToggle(type.value, !!checked)}
+                            />
+                            <Label htmlFor={`admin-cargo-${type.value}`} className="text-sm font-normal">{type.label}</Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <Button type="submit" disabled={registerUserMutation.isPending} data-testid="submit-register-user">
+                    {registerUserMutation.isPending ? "Registering..." : "Register User"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* POST JOB */}
+          <TabsContent value="post-job" className="mt-6" data-testid="post-job-content">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" /> Post a Job on Behalf of a Shipping Entity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={jobForm.handleSubmit((data) => postJobMutation.mutate(data))} className="space-y-6">
+                  <div>
+                    <Label htmlFor="job-shipper">Shipping Entity</Label>
+                    <Select onValueChange={(v) => jobForm.setValue("shipperId", v)}>
+                      <SelectTrigger id="job-shipper" data-testid="select-job-shipper">
+                        <SelectValue placeholder="Select a shipping entity" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(shippingEntitiesData?.users || []).map((s: any) => (
+                          <SelectItem key={s.id} value={String(s.id)}>{s.companyName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {jobForm.formState.errors.shipperId && (
+                      <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.shipperId.message}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="job-cargo-type">Cargo Type</Label>
+                      <Select onValueChange={(v) => jobForm.setValue("cargoType", v)}>
+                        <SelectTrigger id="job-cargo-type" data-testid="select-job-cargo-type"><SelectValue placeholder="Select cargo type" /></SelectTrigger>
+                        <SelectContent>
+                          {CARGO_TYPE_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {jobForm.formState.errors.cargoType && (
+                        <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.cargoType.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="job-industry">Industry</Label>
+                      <Select onValueChange={(v) => jobForm.setValue("industry", v)}>
+                        <SelectTrigger id="job-industry" data-testid="select-job-industry"><SelectValue placeholder="Select industry" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="agriculture">Agriculture</SelectItem>
+                          <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                          <SelectItem value="retail">Retail</SelectItem>
+                          <SelectItem value="mining">Mining</SelectItem>
+                          <SelectItem value="logistics">Logistics</SelectItem>
+                          <SelectItem value="construction">Construction</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {jobForm.formState.errors.industry && (
+                        <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.industry.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="job-weight">Weight (kg)</Label>
+                      <Input id="job-weight" type="number" {...jobForm.register("cargoWeight", { valueAsNumber: true })} data-testid="input-job-weight" />
+                      {jobForm.formState.errors.cargoWeight && (
+                        <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.cargoWeight.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="job-volume">Volume (m³)</Label>
+                      <Input id="job-volume" type="number" step="0.1" {...jobForm.register("cargoVolume", { valueAsNumber: true })} data-testid="input-job-volume" />
+                      {jobForm.formState.errors.cargoVolume && (
+                        <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.cargoVolume.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="job-pickup-country">Pickup Country</Label>
+                      <Select onValueChange={(v) => jobForm.setValue("pickupCountry", v)} defaultValue="BWA">
+                        <SelectTrigger id="job-pickup-country" data-testid="select-job-pickup-country"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {COUNTRY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="job-delivery-country">Delivery Country</Label>
+                      <Select onValueChange={(v) => jobForm.setValue("deliveryCountry", v)} defaultValue="BWA">
+                        <SelectTrigger id="job-delivery-country" data-testid="select-job-delivery-country"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {COUNTRY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="job-pickup-address">Pickup Address</Label>
+                    <Textarea id="job-pickup-address" {...jobForm.register("pickupAddress")} data-testid="textarea-job-pickup-address" />
+                    {jobForm.formState.errors.pickupAddress && (
+                      <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.pickupAddress.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="job-delivery-address">Delivery Address</Label>
+                    <Textarea id="job-delivery-address" {...jobForm.register("deliveryAddress")} data-testid="textarea-job-delivery-address" />
+                    {jobForm.formState.errors.deliveryAddress && (
+                      <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.deliveryAddress.message}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="job-pickup-date">Pickup Date</Label>
+                      <Input id="job-pickup-date" type="date" {...jobForm.register("pickupDate")} data-testid="input-job-pickup-date" />
+                      {jobForm.formState.errors.pickupDate && (
+                        <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.pickupDate.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="job-deadline">Delivery Deadline</Label>
+                      <Input id="job-deadline" type="date" {...jobForm.register("deliveryDeadline")} data-testid="input-job-deadline" />
+                      {jobForm.formState.errors.deliveryDeadline && (
+                        <p className="text-destructive text-sm mt-1">{jobForm.formState.errors.deliveryDeadline.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="job-insurance"
+                      onCheckedChange={(checked) => jobForm.setValue("insuranceRequired", !!checked)}
+                      data-testid="checkbox-job-insurance"
+                    />
+                    <Label htmlFor="job-insurance" className="text-sm font-normal">Insurance Required</Label>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="job-notes">Additional Notes</Label>
+                    <Textarea id="job-notes" {...jobForm.register("notes")} data-testid="textarea-job-notes" />
+                  </div>
+
+                  <Button type="submit" disabled={postJobMutation.isPending} data-testid="submit-post-job">
+                    {postJobMutation.isPending ? "Posting..." : "Post Job"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* SYSTEM */}
+          <TabsContent value="system" className="mt-6" data-testid="system-content">
+            <Card>
+              <CardHeader><CardTitle>System</CardTitle></CardHeader>
               <CardContent>
                 <div className="text-center py-8">
                   <Settings className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">System Monitoring</h3>
                   <p className="text-muted-foreground">
-                    View system logs, performance metrics, and security events.
+                    Logs and performance monitoring aren't wired up yet -- coming later.
                   </p>
-                  <Button className="mt-4" data-testid="view-logs">
-                    View System Logs
-                  </Button>
                 </div>
               </CardContent>
             </Card>

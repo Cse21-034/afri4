@@ -18,6 +18,29 @@ import bcrypt from 'bcryptjs';
 import { db } from './db.js';
 import { eq, and, or, desc, gt, sql } from 'drizzle-orm';
 
+// Fields safe to return to admin UIs -- excludes password hash, tokens, 2FA secret/backup codes.
+const safeUserColumns = {
+  id: users.id,
+  role: users.role,
+  email: users.email,
+  companyName: users.companyName,
+  contactPersonName: users.contactPersonName,
+  phoneNumber: users.phoneNumber,
+  physicalAddress: users.physicalAddress,
+  country: users.country,
+  businessRegistrationNumber: users.businessRegistrationNumber,
+  fleetSize: users.fleetSize,
+  cargoTypes: users.cargoTypes,
+  documents: users.documents,
+  verified: users.verified,
+  subscriptionStatus: users.subscriptionStatus,
+  subscriptionExpiresAt: users.subscriptionExpiresAt,
+  emailVerified: users.emailVerified,
+  twoFactorEnabled: users.twoFactorEnabled,
+  createdAt: users.createdAt,
+  updatedAt: users.updatedAt,
+};
+
 interface IStorage {
   // Users
   createUser(data: Omit<InsertUser, 'createdAt' | 'updatedAt'>): Promise<User>;
@@ -745,9 +768,9 @@ class PostgreSQLStorage implements IStorage {
     hasDocuments?: boolean;
     limit?: number;
     offset?: number;
-  }): Promise<User[]> {
-    let query = db.select().from(users);
-    
+  }) {
+    let query = db.select(safeUserColumns).from(users);
+
     const conditions = [];
     if (filters.role) conditions.push(eq(users.role, filters.role as any));
     if (filters.verified !== undefined) conditions.push(eq((users as any).verified, filters.verified));
@@ -758,21 +781,21 @@ class PostgreSQLStorage implements IStorage {
         conditions.push(or(sql`${users.documents} IS NULL`, sql`${users.documents} = '[]'`));
       }
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     query = query.orderBy(desc(users.createdAt)) as any;
-    
+
     if (filters.limit) query = query.limit(filters.limit) as any;
     if (filters.offset) query = query.offset(filters.offset) as any;
-    
+
     return await query;
   }
-  
-  async getUsersWithPendingDocuments(): Promise<User[]> {
-    return db.select()
+
+  async getUsersWithPendingDocuments() {
+    return db.select(safeUserColumns)
       .from(users)
       .where(
         and(
@@ -783,7 +806,8 @@ class PostgreSQLStorage implements IStorage {
       )
       .orderBy(desc(users.createdAt));
   }
-  
+
+
   async verifyUserDocuments(userId: number, adminId: number, approved: boolean, notes?: string): Promise<void> {
     await db
       .update(users)
