@@ -1108,13 +1108,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: edit a user's details and/or subscription status
+  const EDITABLE_USER_FIELDS = [
+    'companyName', 'contactPersonName', 'phoneNumber', 'physicalAddress', 'country',
+    'fleetSize', 'cargoTypes', 'subscriptionStatus', 'subscriptionExpiresAt'
+  ] as const;
+  app.patch('/api/admin/users/:userId', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.params;
+      const updates: any = {};
+      for (const field of EDITABLE_USER_FIELDS) {
+        if (req.body[field] !== undefined) updates[field] = req.body[field];
+      }
+      if (updates.subscriptionExpiresAt) updates.subscriptionExpiresAt = new Date(updates.subscriptionExpiresAt);
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: 'No editable fields provided' });
+      }
+
+      await storage.updateUser(Number(userId), updates);
+      res.json({ message: 'User updated successfully' });
+    } catch (error: any) {
+      console.error('Admin update user error:', error);
+      res.status(500).json({ message: 'Failed to update user' });
+    }
+  });
+
+  // Admin: suspend/unsuspend an account (reuses the existing lockAccount/unlockAccount
+  // mechanism the login-attempts lockout already relies on, with a far-future expiry so
+  // this stays "locked" rather than auto-expiring)
+  app.post('/api/admin/users/:userId/suspend', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.params;
+      const { suspended } = req.body;
+
+      if (suspended) {
+        const farFuture = new Date();
+        farFuture.setFullYear(farFuture.getFullYear() + 100);
+        await storage.lockAccount(Number(userId), farFuture);
+      } else {
+        await storage.unlockAccount(Number(userId));
+      }
+
+      res.json({ message: suspended ? 'Account suspended' : 'Account reactivated' });
+    } catch (error: any) {
+      console.error('Admin suspend user error:', error);
+      res.status(500).json({ message: 'Failed to update account status' });
+    }
+  });
+
+  // Admin: reset a user's password directly (support case -- user locked out, no working email/phone flow yet)
+  app.post('/api/admin/users/:userId/reset-password', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
+    try {
+      const { userId } = req.params;
+      const { newPassword } = req.body;
+      if (!newPassword || newPassword.length < 8) {
+        return res.status(400).json({ message: 'newPassword must be at least 8 characters' });
+      }
+
+      const hashed = await bcrypt.hash(newPassword, 10);
+      await storage.resetPassword(Number(userId), hashed);
+      res.json({ message: 'Password reset successfully' });
+    } catch (error: any) {
+      console.error('Admin reset password error:', error);
+      res.status(500).json({ message: 'Failed to reset password' });
+    }
+  });
+
+  // Admin: browse/search all jobs on the platform (not restricted to "available" like the trucker view)
+  app.get('/api/admin/jobs', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
+    try {
+      const { status, search, page = '1', limit = '20' } = req.query;
+      const offset = (Number(page) - 1) * Number(limit);
+
+      const jobsList = await storage.getAllJobsAdmin({
+        status: status && status !== 'all' ? status as string : undefined,
+        search: search as string | undefined,
+        limit: Number(limit),
+        offset,
+      });
+
+      res.json({ jobs: jobsList });
+    } catch (error: any) {
+      console.error('Admin jobs list error:', error);
+      res.status(500).json({ message: 'Failed to fetch jobs' });
+    }
+  });
+
+  app.patch('/api/admin/jobs/:jobId/cancel', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const job = await storage.getJobById(Number(jobId));
+      if (!job) return res.status(404).json({ message: 'Job not found' });
+
+      await storage.updateJob(Number(jobId), { status: JobStatus.CANCELLED as any });
+      res.json({ message: 'Job cancelled' });
+    } catch (error: any) {
+      console.error('Admin cancel job error:', error);
+      res.status(500).json({ message: 'Failed to cancel job' });
+    }
+  });
+
   // Admin: register a user on their behalf (e.g. phone intake for a trucker without a smartphone).
   // Skips the email-verification step entirely since admin is vouching for the account.
   app.post('/api/admin/register-user', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
     try {
       const { type, ...body } = req.body;
-      if (type !== 'trucking' && type !== 'shipping') {
-        return res.status(400).json({ message: 'type must be "trucking" or "shipping"' });
+      if (type !== 'trucking' && type !== 'shipping' && type !== 'staff') {
+        return res.status(400).json({ message: 'type must be "trucking", "shipping", or "staff"' });
+      }
+
+      // Staff (admin/customer_support) accounts -- only a super_admin can mint more of these
+      if (type === 'staff') {
+        if (req.user!.role !== UserRole.SUPER_ADMIN) {
+          return res.status(403).json({ message: 'Only a super admin can create staff accounts' });
+        }
+        const { staffRole, contactPersonName, phoneNumber, password, email, physicalAddress } = body;
+        if (staffRole !== UserRole.SUPER_ADMIN && staffRole !== UserRole.CUSTOMER_SUPPORT) {
+          return res.status(400).json({ message: 'staffRole must be "super_admin" or "customer_support"' });
+        }
+        if (!contactPersonName || !phoneNumber || !password || password.length < 8) {
+          return res.status(400).json({ message: 'contactPersonName, phoneNumber, and an 8+ character password are required' });
+        }
+
+        const existingByPhone = await storage.getUserByPhoneNumber(phoneNumber);
+        if (existingByPhone) return res.status(409).json({ message: 'Phone number already registered' });
+        if (email) {
+          const existingByEmail = await storage.getUserByEmail(email);
+          if (existingByEmail) return res.status(409).json({ message: 'Email already registered' });
+        }
+
+        const staffUser = await storage.createUser({
+          role: staffRole,
+          contactPersonName,
+          phoneNumber,
+          password,
+          email: email || undefined,
+          companyName: 'LoadX Africa',
+          physicalAddress: physicalAddress || 'LoadX Africa HQ, Gaborone, Botswana',
+          country: 'BWA',
+          emailVerified: true,
+          subscriptionStatus: 'active',
+        } as any);
+
+        return res.status(201).json({
+          message: 'Staff account created successfully',
+          user: { id: staffUser.id, contactPersonName: staffUser.contactPersonName, role: staffUser.role }
+        });
       }
 
       const validatedData = type === 'trucking'

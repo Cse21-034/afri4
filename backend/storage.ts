@@ -35,6 +35,7 @@ const safeUserColumns = {
   verified: users.verified,
   subscriptionStatus: users.subscriptionStatus,
   subscriptionExpiresAt: users.subscriptionExpiresAt,
+  accountLocked: users.accountLocked,
   emailVerified: users.emailVerified,
   twoFactorEnabled: users.twoFactorEnabled,
   createdAt: users.createdAt,
@@ -524,6 +525,41 @@ class PostgreSQLStorage implements IStorage {
         updatedAt: new Date(),
       } as any)
       .where(eq(jobs.id, id));
+  }
+
+  async getAllJobsAdmin(filters: { status?: string; search?: string; limit: number; offset: number }) {
+    const conditions = [];
+    if (filters.status) conditions.push(eq(jobs.status, filters.status as any));
+    if (filters.search) {
+      const q = `%${filters.search}%`;
+      conditions.push(or(
+        sql`${jobs.pickupAddress} ILIKE ${q}`,
+        sql`${jobs.deliveryAddress} ILIKE ${q}`,
+        sql`${jobs.cargoType}::text ILIKE ${q}`
+      ));
+    }
+
+    let query = db.select().from(jobs);
+    if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+    query = query.orderBy(desc(jobs.createdAt)).limit(filters.limit).offset(filters.offset) as any;
+
+    const jobRows = await query;
+
+    // Resolve shipper/carrier company names in one lightweight lookup rather than N+1 queries.
+    const userIds = Array.from(new Set(jobRows.flatMap((j: any) => [j.shipperId, j.carrierId].filter(Boolean))));
+    const nameMap = new Map<number, string>();
+    if (userIds.length > 0) {
+      const rows = await db.select({ id: users.id, companyName: users.companyName })
+        .from(users)
+        .where(sql`${users.id} IN (${sql.join(userIds.map((id: number) => sql`${id}`), sql`, `)})`);
+      rows.forEach((r) => nameMap.set(r.id, r.companyName || `User #${r.id}`));
+    }
+
+    return jobRows.map((j: any) => ({
+      ...j,
+      shipperName: nameMap.get(j.shipperId) || null,
+      carrierName: j.carrierId ? nameMap.get(j.carrierId) || null : null,
+    }));
   }
 
   async takeJob(jobId: number, carrierId: number): Promise<Job | null> {

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
@@ -96,9 +97,19 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
   const [userFilters, setUserFilters] = useState({ role: 'all', verified: 'all' });
+  const [usersPage, setUsersPage] = useState(1);
+  const USERS_PAGE_SIZE = 20;
   const [disputeFilters, setDisputeFilters] = useState({ status: 'all' });
-  const [registerType, setRegisterType] = useState<'trucking' | 'shipping'>('trucking');
+  const [registerType, setRegisterType] = useState<'trucking' | 'shipping' | 'staff'>('trucking');
+  const [staffRole, setStaffRole] = useState<'super_admin' | 'customer_support'>('customer_support');
   const [selectedCargoTypes, setSelectedCargoTypes] = useState<string[]>([]);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [resetPasswordUser, setResetPasswordUser] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [jobFilters, setJobFilters] = useState({ status: 'all', search: '' });
+  const [jobsPage, setJobsPage] = useState(1);
+  const JOBS_PAGE_SIZE = 20;
 
   const isAuthorized = !!user && (user.role === 'super_admin' || user.role === 'customer_support');
 
@@ -109,12 +120,27 @@ export default function AdminDashboard() {
   });
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: ['/api/admin/users', userFilters],
+    queryKey: ['/api/admin/users', userFilters, usersPage],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (userFilters.role !== 'all') params.append('role', userFilters.role);
       if (userFilters.verified !== 'all') params.append('verified', userFilters.verified);
+      params.append('page', String(usersPage));
+      params.append('limit', String(USERS_PAGE_SIZE));
       return (await apiRequest('GET', `/api/admin/users?${params.toString()}`)).json();
+    },
+    enabled: isAuthorized,
+  });
+
+  const { data: jobsData, isLoading: jobsLoading } = useQuery({
+    queryKey: ['/api/admin/jobs', jobFilters, jobsPage],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (jobFilters.status !== 'all') params.append('status', jobFilters.status);
+      if (jobFilters.search) params.append('search', jobFilters.search);
+      params.append('page', String(jobsPage));
+      params.append('limit', String(JOBS_PAGE_SIZE));
+      return (await apiRequest('GET', `/api/admin/jobs?${params.toString()}`)).json();
     },
     enabled: isAuthorized,
   });
@@ -172,14 +198,60 @@ export default function AdminDashboard() {
     onError: (error: Error) => toast({ title: "Error", description: error.message, variant: "destructive" }),
   });
 
+  const editUserMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: number; data: any }) =>
+      (await apiRequest('PATCH', `/api/admin/users/${userId}`, data)).json(),
+    onSuccess: () => {
+      toast({ title: "User updated" });
+      setEditingUser(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+    },
+    onError: (error: Error) => toast({ title: "Update failed", description: error.message, variant: "destructive" }),
+  });
+
+  const suspendUserMutation = useMutation({
+    mutationFn: async ({ userId, suspended }: { userId: number; suspended: boolean }) =>
+      (await apiRequest('POST', `/api/admin/users/${userId}/suspend`, { suspended })).json(),
+    onSuccess: (data) => {
+      toast({ title: data.message });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+    },
+    onError: (error: Error) => toast({ title: "Error", description: error.message, variant: "destructive" }),
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: number; password: string }) =>
+      (await apiRequest('POST', `/api/admin/users/${userId}/reset-password`, { newPassword: password })).json(),
+    onSuccess: () => {
+      toast({ title: "Password reset successfully" });
+      setResetPasswordUser(null);
+      setNewPassword("");
+    },
+    onError: (error: Error) => toast({ title: "Reset failed", description: error.message, variant: "destructive" }),
+  });
+
+  const cancelJobMutation = useMutation({
+    mutationFn: async (jobId: number) => (await apiRequest('PATCH', `/api/admin/jobs/${jobId}/cancel`)).json(),
+    onSuccess: () => {
+      toast({ title: "Job cancelled" });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
+    },
+    onError: (error: Error) => toast({ title: "Error", description: error.message, variant: "destructive" }),
+  });
+
   const registerForm = useForm<RegisterUserFormData>({
     resolver: zodResolver(registerUserSchema),
     defaultValues: { country: "BWA" },
   });
 
   const registerUserMutation = useMutation({
-    mutationFn: async (data: RegisterUserFormData) =>
-      (await apiRequest('POST', '/api/admin/register-user', { ...data, type: registerType })).json(),
+    mutationFn: async (data: RegisterUserFormData) => {
+      const payload = registerType === 'staff'
+        ? { type: 'staff', staffRole, contactPersonName: data.contactPersonName, phoneNumber: data.phoneNumber, password: data.password, email: data.email, physicalAddress: data.physicalAddress }
+        : { ...data, type: registerType };
+      return (await apiRequest('POST', '/api/admin/register-user', payload)).json();
+    },
     onSuccess: (data) => {
       toast({ title: "User registered", description: data.message });
       registerForm.reset({ country: "BWA" });
@@ -325,6 +397,9 @@ export default function AdminDashboard() {
             <TabsTrigger value="disputes" className="flex items-center gap-2" data-testid="tab-disputes">
               <MessageSquare className="h-4 w-4" /> Disputes
             </TabsTrigger>
+            <TabsTrigger value="jobs" className="flex items-center gap-2" data-testid="tab-jobs-admin">
+              <Package className="h-4 w-4" /> Jobs
+            </TabsTrigger>
             <TabsTrigger value="register" className="flex items-center gap-2" data-testid="tab-register">
               <UserPlus className="h-4 w-4" /> Register User
             </TabsTrigger>
@@ -429,47 +504,176 @@ export default function AdminDashboard() {
                 {usersLoading ? (
                   <p className="text-muted-foreground text-center py-8">Loading users...</p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Company</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Docs</TableHead>
-                        <TableHead>Joined</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(usersData?.users || []).map((u: any) => (
-                        <TableRow key={u.id}>
-                          <TableCell className="font-medium">{u.companyName}</TableCell>
-                          <TableCell>{u.email || u.phoneNumber}</TableCell>
-                          <TableCell>
-                            <Badge variant={u.role === 'trucking_company' ? 'default' : 'secondary'}>
-                              {u.role === 'trucking_company' ? 'Trucking' : u.role === 'shipping_entity' ? 'Shipping' : u.role}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={u.verified ? 'default' : 'destructive'}>
-                              {u.verified ? 'Verified' : 'Unverified'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {u.documents?.length > 0 ? (
-                              <Badge variant="secondary">{u.documents.length} files</Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">None</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{new Date(u.createdAt).toLocaleDateString()}</TableCell>
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Company</TableHead>
+                          <TableHead>Contact</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Subscription</TableHead>
+                          <TableHead>Docs</TableHead>
+                          <TableHead>Joined</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {(usersData?.users || []).map((u: any) => (
+                          <TableRow key={u.id}>
+                            <TableCell className="font-medium">{u.companyName}</TableCell>
+                            <TableCell>{u.email || u.phoneNumber}</TableCell>
+                            <TableCell>
+                              <Badge variant={u.role === 'trucking_company' ? 'default' : 'secondary'}>
+                                {u.role === 'trucking_company' ? 'Trucking' : u.role === 'shipping_entity' ? 'Shipping' : u.role}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                <Badge variant={u.verified ? 'default' : 'destructive'}>
+                                  {u.verified ? 'Verified' : 'Unverified'}
+                                </Badge>
+                                {u.accountLocked && <Badge variant="destructive">Suspended</Badge>}
+                              </div>
+                            </TableCell>
+                            <TableCell className="capitalize">{u.subscriptionStatus || '-'}</TableCell>
+                            <TableCell>
+                              {u.documents?.length > 0 ? (
+                                <Badge variant="secondary">{u.documents.length} files</Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">None</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{new Date(u.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-1 flex-wrap">
+                                <Button
+                                  size="sm" variant="outline"
+                                  onClick={() => { setEditingUser(u); setEditForm({ ...u }); }}
+                                  data-testid={`edit-user-${u.id}`}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="sm" variant="outline"
+                                  onClick={() => setResetPasswordUser(u)}
+                                  data-testid={`reset-password-${u.id}`}
+                                >
+                                  Reset PW
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={u.accountLocked ? "default" : "destructive"}
+                                  onClick={() => suspendUserMutation.mutate({ userId: u.id, suspended: !u.accountLocked })}
+                                  disabled={suspendUserMutation.isPending}
+                                  data-testid={`suspend-user-${u.id}`}
+                                >
+                                  {u.accountLocked ? 'Reactivate' : 'Suspend'}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <div className="flex justify-between items-center mt-4">
+                      <Button
+                        variant="outline" size="sm"
+                        disabled={usersPage === 1}
+                        onClick={() => setUsersPage((p) => p - 1)}
+                        data-testid="users-prev-page"
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">Page {usersPage}</span>
+                      <Button
+                        variant="outline" size="sm"
+                        disabled={(usersData?.users?.length || 0) < USERS_PAGE_SIZE}
+                        onClick={() => setUsersPage((p) => p + 1)}
+                        data-testid="users-next-page"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
+
+            {/* Edit User Dialog */}
+            <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+              <DialogContent data-testid="edit-user-dialog">
+                <DialogHeader><DialogTitle>Edit {editingUser?.companyName}</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Company Name</Label>
+                    <Input value={editForm.companyName || ''} onChange={(e) => setEditForm({ ...editForm, companyName: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Contact Person</Label>
+                    <Input value={editForm.contactPersonName || ''} onChange={(e) => setEditForm({ ...editForm, contactPersonName: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Phone Number</Label>
+                    <Input value={editForm.phoneNumber || ''} onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Physical Address</Label>
+                    <Textarea value={editForm.physicalAddress || ''} onChange={(e) => setEditForm({ ...editForm, physicalAddress: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Subscription Status</Label>
+                    <Select value={editForm.subscriptionStatus} onValueChange={(v) => setEditForm({ ...editForm, subscriptionStatus: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="trial">Trial</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">Use "Active" here to manually mark a bank-transfer payment as paid.</p>
+                  </div>
+                  <Button
+                    className="w-full"
+                    disabled={editUserMutation.isPending}
+                    onClick={() => editUserMutation.mutate({
+                      userId: editingUser.id,
+                      data: {
+                        companyName: editForm.companyName,
+                        contactPersonName: editForm.contactPersonName,
+                        phoneNumber: editForm.phoneNumber,
+                        physicalAddress: editForm.physicalAddress,
+                        subscriptionStatus: editForm.subscriptionStatus,
+                      }
+                    })}
+                    data-testid="save-edit-user"
+                  >
+                    {editUserMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Reset Password Dialog */}
+            <Dialog open={!!resetPasswordUser} onOpenChange={(open) => !open && setResetPasswordUser(null)}>
+              <DialogContent data-testid="reset-password-dialog">
+                <DialogHeader><DialogTitle>Reset Password: {resetPasswordUser?.companyName}</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>New Password</Label>
+                    <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 8 characters" />
+                  </div>
+                  <Button
+                    className="w-full"
+                    disabled={resetPasswordMutation.isPending || newPassword.length < 8}
+                    onClick={() => resetPasswordMutation.mutate({ userId: resetPasswordUser.id, password: newPassword })}
+                    data-testid="confirm-reset-password"
+                  >
+                    {resetPasswordMutation.isPending ? "Resetting..." : "Reset Password"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* VERIFICATION */}
@@ -651,6 +855,114 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* JOBS */}
+          <TabsContent value="jobs" className="mt-6" data-testid="jobs-admin-content">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" /> All Jobs
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Search cargo/address..."
+                      value={jobFilters.search}
+                      onChange={(e) => { setJobFilters({ ...jobFilters, search: e.target.value }); setJobsPage(1); }}
+                      className="w-[200px]"
+                      data-testid="job-admin-search"
+                    />
+                    <Select value={jobFilters.status} onValueChange={(v) => { setJobFilters({ ...jobFilters, status: v }); setJobsPage(1); }}>
+                      <SelectTrigger className="w-[150px]" data-testid="filter-job-status"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="taken">In Progress</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                {jobsLoading ? (
+                  <p className="text-muted-foreground text-center py-8">Loading jobs...</p>
+                ) : (jobsData?.jobs?.length ?? 0) === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No jobs match your filters.</p>
+                ) : (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cargo</TableHead>
+                          <TableHead>Shipper</TableHead>
+                          <TableHead>Carrier</TableHead>
+                          <TableHead>Route</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Posted</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(jobsData?.jobs || []).map((j: any) => (
+                          <TableRow key={j.id}>
+                            <TableCell className="font-medium capitalize">{j.cargoType} ({j.cargoWeight}kg)</TableCell>
+                            <TableCell>{j.shipperName || '-'}</TableCell>
+                            <TableCell>{j.carrierName || '-'}</TableCell>
+                            <TableCell className="max-w-[200px] truncate" title={`${j.pickupAddress} → ${j.deliveryAddress}`}>
+                              {j.pickupAddress} &rarr; {j.deliveryAddress}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                j.status === 'available' ? 'default' :
+                                j.status === 'taken' ? 'secondary' :
+                                j.status === 'cancelled' ? 'destructive' : 'outline'
+                              }>
+                                {j.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{new Date(j.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              {(j.status === 'available' || j.status === 'taken') && (
+                                <Button
+                                  size="sm" variant="destructive"
+                                  onClick={() => cancelJobMutation.mutate(j.id)}
+                                  disabled={cancelJobMutation.isPending}
+                                  data-testid={`cancel-job-${j.id}`}
+                                >
+                                  Cancel
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <div className="flex justify-between items-center mt-4">
+                      <Button
+                        variant="outline" size="sm"
+                        disabled={jobsPage === 1}
+                        onClick={() => setJobsPage((p) => p - 1)}
+                        data-testid="jobs-prev-page"
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">Page {jobsPage}</span>
+                      <Button
+                        variant="outline" size="sm"
+                        disabled={(jobsData?.jobs?.length || 0) < JOBS_PAGE_SIZE}
+                        onClick={() => setJobsPage((p) => p + 1)}
+                        data-testid="jobs-next-page"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* REGISTER USER */}
           <TabsContent value="register" className="mt-6" data-testid="register-content">
             <Card>
@@ -680,8 +992,58 @@ export default function AdminDashboard() {
                   >
                     Shipping Entity
                   </Button>
+                  {user?.role === 'super_admin' && (
+                    <Button
+                      type="button"
+                      variant={registerType === 'staff' ? 'default' : 'outline'}
+                      onClick={() => setRegisterType('staff')}
+                      data-testid="register-type-staff"
+                    >
+                      Staff (Admin/Support)
+                    </Button>
+                  )}
                 </div>
 
+                {registerType === 'staff' ? (
+                  <div className="space-y-6 max-w-lg">
+                    <div>
+                      <Label>Staff Role</Label>
+                      <Select value={staffRole} onValueChange={(v) => setStaffRole(v as any)}>
+                        <SelectTrigger data-testid="select-staff-role"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="customer_support">Customer Support</SelectItem>
+                          <SelectItem value="super_admin">Super Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="staff-name">Full Name</Label>
+                      <Input id="staff-name" {...registerForm.register("contactPersonName")} data-testid="input-staff-name" />
+                    </div>
+                    <div>
+                      <Label htmlFor="staff-phone">Phone Number</Label>
+                      <Input id="staff-phone" {...registerForm.register("phoneNumber")} placeholder="+267 xxx xxxx" data-testid="input-staff-phone" />
+                    </div>
+                    <div>
+                      <Label htmlFor="staff-email">Email (Optional)</Label>
+                      <Input id="staff-email" type="email" {...registerForm.register("email")} data-testid="input-staff-email" />
+                    </div>
+                    <div>
+                      <Label htmlFor="staff-password">Temporary Password</Label>
+                      <Input id="staff-password" type="password" {...registerForm.register("password")} data-testid="input-staff-password" />
+                    </div>
+                    <Button
+                      onClick={() => registerUserMutation.mutate(registerForm.getValues())}
+                      disabled={registerUserMutation.isPending}
+                      data-testid="submit-register-staff"
+                    >
+                      {registerUserMutation.isPending ? "Creating..." : "Create Staff Account"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Full name, phone number, and an 8+ character password are required (checked on submit).
+                    </p>
+                  </div>
+                ) : (
                 <form onSubmit={registerForm.handleSubmit((data) => registerUserMutation.mutate(data))} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -774,6 +1136,7 @@ export default function AdminDashboard() {
                     {registerUserMutation.isPending ? "Registering..." : "Register User"}
                   </Button>
                 </form>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

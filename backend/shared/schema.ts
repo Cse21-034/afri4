@@ -7,7 +7,7 @@ import { sql } from "drizzle-orm";
 export const userRoleEnum = pgEnum('user_role', ['trucking_company', 'shipping_entity', 'super_admin', 'customer_support']);
 export const cargoTypeEnum = pgEnum('cargo_type', ['general', 'refrigerated', 'hazardous', 'bulk', 'containers', 'livestock', 'agricultural', 'mining', 'construction', 'vehicles', 'electronics', 'textiles', 'pharmaceuticals', 'perishables', 'oversized', 'liquids']);
 export const industryEnum = pgEnum('industry', ['agriculture', 'manufacturing', 'retail', 'mining', 'logistics', 'construction']);
-export const jobStatusEnum = pgEnum('job_status', ['available', 'taken', 'completed']);
+export const jobStatusEnum = pgEnum('job_status', ['available', 'taken', 'completed', 'cancelled']);
 export const countryEnum = pgEnum('country', ['AGO', 'BWA', 'COM', 'COD', 'SWZ', 'LSO', 'MDG', 'MWI', 'MUS', 'MOZ', 'NAM', 'SYC', 'ZAF', 'TZA', 'ZMB', 'ZWE']);
 export const subscriptionStatusEnum = pgEnum('subscription_status', ['active', 'inactive', 'trial']);
 export const notificationTypeEnum = pgEnum('notification_type', ['job_match', 'job_taken', 'job_completed', 'payment_confirmed', 'subscription_expiring']);
@@ -61,7 +61,8 @@ export type IndustryType = typeof Industry[keyof typeof Industry];
 export const JobStatus = {
   AVAILABLE: 'available',
   TAKEN: 'taken',
-  COMPLETED: 'completed'
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled'
 } as const;
 
 export type JobStatusType = typeof JobStatus[keyof typeof JobStatus];
