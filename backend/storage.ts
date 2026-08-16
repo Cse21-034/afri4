@@ -42,6 +42,8 @@ const safeUserColumns = {
   updatedAt: users.updatedAt,
 };
 
+type SafeUser = Pick<User, keyof typeof safeUserColumns>;
+
 interface IStorage {
   // Users
   createUser(data: Omit<InsertUser, 'createdAt' | 'updatedAt'>): Promise<User>;
@@ -131,8 +133,8 @@ interface IStorage {
     hasDocuments?: boolean;
     limit?: number;
     offset?: number;
-  }): Promise<User[]>;
-  getUsersWithPendingDocuments(): Promise<User[]>;
+  }): Promise<SafeUser[]>;
+  getUsersWithPendingDocuments(): Promise<SafeUser[]>;
   verifyUserDocuments(userId: number, adminId: number, approved: boolean, notes?: string): Promise<void>;
   
   // Dispute operations
