@@ -76,16 +76,16 @@ type RegisterUserFormData = z.infer<typeof registerUserSchema>;
 
 const jobSchema = z.object({
   shipperId: z.string().min(1, "Select a shipping entity"),
-  cargoType: z.string().min(1, "Cargo type is required"),
-  cargoWeight: z.number().min(1, "Weight must be greater than 0"),
-  cargoVolume: z.number().min(1, "Volume must be greater than 0"),
-  industry: z.string().min(1, "Industry is required"),
-  pickupAddress: z.string().min(1, "Pickup address is required"),
-  deliveryAddress: z.string().min(1, "Delivery address is required"),
-  pickupCountry: z.string().min(1, "Pickup country is required"),
-  deliveryCountry: z.string().min(1, "Delivery country is required"),
-  pickupDate: z.string().min(1, "Pickup date is required"),
-  deliveryDeadline: z.string().min(1, "Delivery deadline is required"),
+  cargoType: z.string().optional(),
+  cargoWeight: z.number().optional(),
+  cargoVolume: z.number().optional(),
+  industry: z.string().optional(),
+  pickupAddress: z.string().optional(),
+  deliveryAddress: z.string().optional(),
+  pickupCountry: z.string().optional(),
+  deliveryCountry: z.string().optional(),
+  pickupDate: z.string().optional(),
+  deliveryDeadline: z.string().optional(),
   specialHandling: z.string().optional(),
   insuranceRequired: z.boolean().default(false),
   notes: z.string().optional(),
@@ -906,11 +906,13 @@ export default function AdminDashboard() {
                       <TableBody>
                         {(jobsData?.jobs || []).map((j: any) => (
                           <TableRow key={j.id}>
-                            <TableCell className="font-medium capitalize">{j.cargoType} ({j.cargoWeight}kg)</TableCell>
+                            <TableCell className="font-medium capitalize">
+                              {j.cargoType || 'Not specified'}{j.cargoWeight ? ` (${j.cargoWeight}kg)` : ''}
+                            </TableCell>
                             <TableCell>{j.shipperName || '-'}</TableCell>
                             <TableCell>{j.carrierName || '-'}</TableCell>
-                            <TableCell className="max-w-[200px] truncate" title={`${j.pickupAddress} → ${j.deliveryAddress}`}>
-                              {j.pickupAddress} &rarr; {j.deliveryAddress}
+                            <TableCell className="max-w-[200px] truncate" title={`${j.pickupAddress || '?'} → ${j.deliveryAddress || '?'}`}>
+                              {j.pickupAddress || 'Not specified'} &rarr; {j.deliveryAddress || 'Not specified'}
                             </TableCell>
                             <TableCell>
                               <Badge variant={

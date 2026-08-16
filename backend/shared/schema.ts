@@ -147,21 +147,22 @@ export const jobs = pgTable('jobs', {
   shipperId: integer('shipper_id').notNull().references(() => users.id),
   carrierId: integer('carrier_id').references(() => users.id),
   
-  // Cargo details
-  cargoType: cargoTypeEnum('cargo_type').notNull(),
-  cargoWeight: integer('cargo_weight').notNull(), // in kg
-  cargoVolume: integer('cargo_volume').notNull(), // in m³
-  industry: industryEnum('industry').notNull(),
-  
+  // Cargo details -- all optional: not every job has a known weight/volume/deadline upfront,
+  // let the poster fill in only what they actually know.
+  cargoType: cargoTypeEnum('cargo_type'),
+  cargoWeight: integer('cargo_weight'), // in kg
+  cargoVolume: integer('cargo_volume'), // in m³
+  industry: industryEnum('industry'),
+
   // Locations
-  pickupAddress: text('pickup_address').notNull(),
-  deliveryAddress: text('delivery_address').notNull(),
-  pickupCountry: countryEnum('pickup_country').notNull(),
-  deliveryCountry: countryEnum('delivery_country').notNull(),
-  
+  pickupAddress: text('pickup_address'),
+  deliveryAddress: text('delivery_address'),
+  pickupCountry: countryEnum('pickup_country'),
+  deliveryCountry: countryEnum('delivery_country'),
+
   // Schedule
-  pickupDate: timestamp('pickup_date').notNull(),
-  deliveryDeadline: timestamp('delivery_deadline').notNull(),
+  pickupDate: timestamp('pickup_date'),
+  deliveryDeadline: timestamp('delivery_deadline'),
   
   // Requirements
   specialHandling: text('special_handling'),

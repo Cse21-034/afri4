@@ -7,17 +7,17 @@ import { useState } from "react";
 
 interface Job {
   id: number;
-  cargoType: string;
-  cargoWeight: number;
-  cargoVolume?: number;
-  pickupAddress: string;
-  deliveryAddress: string;
-  pickupCountry: string;
-  deliveryCountry: string;
-  industry: string;
+  cargoType?: string | null;
+  cargoWeight?: number | null;
+  cargoVolume?: number | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  pickupCountry?: string | null;
+  deliveryCountry?: string | null;
+  industry?: string | null;
   status: string;
   createdAt: string;
-  pickupDate: string;
+  pickupDate?: string | null;
   deliveryDeadline?: string | null;
   specialHandling?: string;
   insuranceRequired?: boolean;
@@ -41,11 +41,13 @@ const COUNTRY_NAMES: Record<string, string> = {
   ZAF: "South Africa", TZA: "Tanzania", ZMB: "Zambia", ZWE: "Zimbabwe",
 };
 
-function getCountryName(code: string) {
+function getCountryName(code?: string | null) {
+  if (!code) return 'Not specified';
   return COUNTRY_NAMES[code] || code;
 }
 
-function formatCargoType(type: string) {
+function formatCargoType(type?: string | null) {
+  if (!type) return 'Cargo type not specified';
   return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
@@ -78,8 +80,13 @@ export function JobListItem({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const status = getStatusMeta(job.status);
 
-  const title = `${formatCargoType(job.cargoType)} Shipment - ${job.cargoWeight}kg`;
-  const meta = `${job.industry.charAt(0).toUpperCase() + job.industry.slice(1)} · ${getCountryName(job.pickupCountry)} to ${getCountryName(job.deliveryCountry)} · ${formatDate(job.createdAt)}`;
+  const title = `${formatCargoType(job.cargoType)}${job.cargoWeight ? ` - ${job.cargoWeight}kg` : ''}`;
+  const metaParts = [
+    job.industry ? job.industry.charAt(0).toUpperCase() + job.industry.slice(1) : null,
+    (job.pickupCountry || job.deliveryCountry) ? `${getCountryName(job.pickupCountry)} to ${getCountryName(job.deliveryCountry)}` : null,
+    formatDate(job.createdAt),
+  ].filter(Boolean);
+  const meta = metaParts.join(' · ');
   const snippet = job.notes || job.specialHandling || job.pickupAddress;
 
   return (
@@ -105,7 +112,7 @@ export function JobListItem({
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center gap-1 text-sm font-medium text-foreground">
               <Weight className="h-4 w-4 text-muted-foreground" />
-              {job.cargoWeight}kg{job.cargoVolume ? ` · ${job.cargoVolume}m³` : ''}
+              {job.cargoWeight ? `${job.cargoWeight}kg` : 'Weight n/a'}{job.cargoVolume ? ` · ${job.cargoVolume}m³` : ''}
             </div>
             <Button
               size="sm"
@@ -132,21 +139,25 @@ export function JobListItem({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-muted-foreground text-xs mb-1">Cargo</p>
-                <p className="font-medium">{formatCargoType(job.cargoType)}, {job.cargoWeight}kg{job.cargoVolume ? `, ${job.cargoVolume}m³` : ''}</p>
+                <p className="font-medium">
+                  {formatCargoType(job.cargoType)}
+                  {job.cargoWeight ? `, ${job.cargoWeight}kg` : ''}
+                  {job.cargoVolume ? `, ${job.cargoVolume}m³` : ''}
+                </p>
               </div>
               <div>
                 <p className="text-muted-foreground text-xs mb-1">Industry</p>
-                <p className="font-medium capitalize">{job.industry}</p>
+                <p className="font-medium capitalize">{job.industry || 'Not specified'}</p>
               </div>
             </div>
 
             <div>
               <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><MapPin className="h-3 w-3" /> Pickup</p>
-              <p className="font-medium">{job.pickupAddress}, {getCountryName(job.pickupCountry)}</p>
+              <p className="font-medium">{job.pickupAddress || 'Not specified'}{job.pickupCountry ? `, ${getCountryName(job.pickupCountry)}` : ''}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs mb-1 flex items-center gap-1"><MapPin className="h-3 w-3" /> Delivery</p>
-              <p className="font-medium">{job.deliveryAddress}, {getCountryName(job.deliveryCountry)}</p>
+              <p className="font-medium">{job.deliveryAddress || 'Not specified'}{job.deliveryCountry ? `, ${getCountryName(job.deliveryCountry)}` : ''}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

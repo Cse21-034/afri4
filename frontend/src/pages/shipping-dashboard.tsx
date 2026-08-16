@@ -74,34 +74,34 @@ const statusFilterOptions = [
 
 interface Job {
   id: number;
-  cargoType: string;
-  cargoWeight: number;
-  cargoVolume: number;
-  pickupAddress: string;
-  deliveryAddress: string;
-  pickupCountry: string;
-  deliveryCountry: string;
-  industry: string;
+  cargoType?: string | null;
+  cargoWeight?: number | null;
+  cargoVolume?: number | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  pickupCountry?: string | null;
+  deliveryCountry?: string | null;
+  industry?: string | null;
   status: string;
   createdAt: string;
-  pickupDate: string;
-  deliveryDeadline: string;
+  pickupDate?: string | null;
+  deliveryDeadline?: string | null;
   specialHandling?: string;
   insuranceRequired: boolean;
   notes?: string;
 }
 
 const jobSchema = z.object({
-  cargoType: z.string().min(1, "Cargo type is required"),
-  cargoWeight: z.number().min(1, "Weight must be greater than 0"),
-  cargoVolume: z.number().min(1, "Volume must be greater than 0"),
-  industry: z.string().min(1, "Industry is required"),
-  pickupAddress: z.string().min(1, "Pickup address is required"),
-  deliveryAddress: z.string().min(1, "Delivery address is required"),
-  pickupCountry: z.string().min(1, "Pickup country is required"),
-  deliveryCountry: z.string().min(1, "Delivery country is required"),
-  pickupDate: z.string().min(1, "Pickup date is required"),
-  deliveryDeadline: z.string().min(1, "Delivery deadline is required"),
+  cargoType: z.string().optional(),
+  cargoWeight: z.number().optional(),
+  cargoVolume: z.number().optional(),
+  industry: z.string().optional(),
+  pickupAddress: z.string().optional(),
+  deliveryAddress: z.string().optional(),
+  pickupCountry: z.string().optional(),
+  deliveryCountry: z.string().optional(),
+  pickupDate: z.string().optional(),
+  deliveryDeadline: z.string().optional(),
   specialHandling: z.string().optional(),
   insuranceRequired: z.boolean().default(false),
   notes: z.string().optional(),
@@ -221,9 +221,9 @@ export default function ShippingDashboard() {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (
-        job.cargoType.toLowerCase().includes(q) ||
-        job.pickupAddress.toLowerCase().includes(q) ||
-        job.deliveryAddress.toLowerCase().includes(q) ||
+        job.cargoType?.toLowerCase().includes(q) ||
+        job.pickupAddress?.toLowerCase().includes(q) ||
+        job.deliveryAddress?.toLowerCase().includes(q) ||
         job.notes?.toLowerCase().includes(q)
       );
     })

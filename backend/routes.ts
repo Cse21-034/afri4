@@ -648,8 +648,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const jobData = insertJobSchema.parse({
         ...req.body,
         shipperId,
-        pickupDate: new Date(req.body.pickupDate),
-        deliveryDeadline: new Date(req.body.deliveryDeadline)
+        pickupDate: req.body.pickupDate ? new Date(req.body.pickupDate) : undefined,
+        deliveryDeadline: req.body.deliveryDeadline ? new Date(req.body.deliveryDeadline) : undefined
       });
 
       const job = await storage.createJob(jobData as any);

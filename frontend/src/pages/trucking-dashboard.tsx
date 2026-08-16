@@ -26,17 +26,17 @@ import { Search, Truck, User as UserIcon, SlidersHorizontal } from "lucide-react
 
 interface Job {
   id: number;
-  cargoType: string;
-  cargoWeight: number;
-  cargoVolume?: number;
-  pickupAddress: string;
-  deliveryAddress: string;
-  pickupCountry: string;
-  deliveryCountry: string;
-  industry: string;
+  cargoType?: string | null;
+  cargoWeight?: number | null;
+  cargoVolume?: number | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  pickupCountry?: string | null;
+  deliveryCountry?: string | null;
+  industry?: string | null;
   status: string;
   createdAt: string;
-  pickupDate: string;
+  pickupDate?: string | null;
   deliveryDeadline?: string | null;
   specialHandling?: string;
   insuranceRequired?: boolean;
@@ -173,10 +173,10 @@ export default function TruckingDashboard() {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (
-        job.cargoType.toLowerCase().includes(q) ||
-        job.pickupAddress.toLowerCase().includes(q) ||
-        job.deliveryAddress.toLowerCase().includes(q) ||
-        job.industry.toLowerCase().includes(q)
+        job.cargoType?.toLowerCase().includes(q) ||
+        job.pickupAddress?.toLowerCase().includes(q) ||
+        job.deliveryAddress?.toLowerCase().includes(q) ||
+        job.industry?.toLowerCase().includes(q)
       );
     })
     .sort((a, b) => {
