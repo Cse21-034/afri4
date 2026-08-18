@@ -84,13 +84,44 @@ const jobSchema = z.object({
   deliveryAddress: z.string().optional(),
   pickupCountry: z.string().optional(),
   deliveryCountry: z.string().optional(),
+  distanceKm: z.number().optional(),
   pickupDate: z.string().optional(),
   deliveryDeadline: z.string().optional(),
   specialHandling: z.string().optional(),
   insuranceRequired: z.boolean().default(false),
   notes: z.string().optional(),
+  truckType: z.string().optional(),
+  requiresHazmat: z.boolean().default(false),
+  requiresTrec: z.boolean().default(false),
+  requiresPlacards: z.boolean().default(false),
+  rateAmount: z.string().optional(),
+  rateBasis: z.string().default("flat"),
+  rateCurrency: z.string().optional(),
+  paymentTerms: z.string().optional(),
+  dieselOnAccount: z.boolean().default(false),
+  jobMode: z.string().default("fixed"),
+  totalQuantity: z.number().optional(),
+  quantityUnit: z.string().optional(),
 });
 type JobFormData = z.infer<typeof jobSchema>;
+
+const TRUCK_TYPE_OPTIONS = [
+  { value: "tri_axle", label: "Tri-Axle" }, { value: "superlink", label: "Superlink" },
+  { value: "link", label: "Link" }, { value: "tautliner", label: "Tautliner" },
+  { value: "flat_deck", label: "Flat Deck" }, { value: "pantech", label: "Pantech" },
+  { value: "tanker", label: "Tanker" }, { value: "tipper", label: "Tipper" },
+  { value: "lowbed", label: "Lowbed" }, { value: "reefer", label: "Reefer" },
+  { value: "side_tipper", label: "Side Tipper" }, { value: "other", label: "Other" },
+];
+
+const CURRENCIES = ["ZAR", "BWP", "USD", "ZMW", "NAD", "MZN"];
+
+const advisorySchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  body: z.string().min(1, "Body is required"),
+  country: z.string().optional(),
+});
+type AdvisoryFormData = z.infer<typeof advisorySchema>;
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -142,6 +173,12 @@ export default function AdminDashboard() {
       params.append('limit', String(JOBS_PAGE_SIZE));
       return (await apiRequest('GET', `/api/admin/jobs?${params.toString()}`)).json();
     },
+    enabled: isAuthorized,
+  });
+
+  const { data: advisoriesData } = useQuery({
+    queryKey: ['/api/advisories'],
+    queryFn: async () => (await apiRequest('GET', '/api/advisories?limit=20')).json(),
     enabled: isAuthorized,
   });
 
@@ -262,19 +299,41 @@ export default function AdminDashboard() {
     onError: (error: Error) => toast({ title: "Registration failed", description: error.message, variant: "destructive" }),
   });
 
+  const jobFormDefaults: Partial<JobFormData> = {
+    pickupCountry: "BWA", deliveryCountry: "BWA", insuranceRequired: false,
+    rateBasis: "flat", jobMode: "fixed", requiresHazmat: false, requiresTrec: false,
+    requiresPlacards: false, dieselOnAccount: false,
+  };
+
   const jobForm = useForm<JobFormData>({
     resolver: zodResolver(jobSchema),
-    defaultValues: { pickupCountry: "BWA", deliveryCountry: "BWA", insuranceRequired: false },
+    defaultValues: jobFormDefaults,
   });
+  const jobModeWatch = jobForm.watch("jobMode");
 
   const postJobMutation = useMutation({
     mutationFn: async (data: JobFormData) => (await apiRequest('POST', '/api/jobs', data)).json(),
     onSuccess: () => {
       toast({ title: "Job posted successfully" });
-      jobForm.reset({ pickupCountry: "BWA", deliveryCountry: "BWA", insuranceRequired: false });
+      jobForm.reset(jobFormDefaults);
       queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/jobs'] });
     },
     onError: (error: Error) => toast({ title: "Failed to post job", description: error.message, variant: "destructive" }),
+  });
+
+  const advisoryForm = useForm<AdvisoryFormData>({
+    resolver: zodResolver(advisorySchema),
+  });
+
+  const postAdvisoryMutation = useMutation({
+    mutationFn: async (data: AdvisoryFormData) => (await apiRequest('POST', '/api/admin/advisories', data)).json(),
+    onSuccess: () => {
+      toast({ title: "Advisory posted" });
+      advisoryForm.reset({ title: '', body: '', country: undefined });
+      queryClient.invalidateQueries({ queryKey: ['/api/advisories'] });
+    },
+    onError: (error: Error) => toast({ title: "Failed to post advisory", description: error.message, variant: "destructive" }),
   });
 
   const handleCargoTypeToggle = (type: string, checked: boolean) => {
@@ -405,6 +464,9 @@ export default function AdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="post-job" className="flex items-center gap-2" data-testid="tab-post-job">
               <Plus className="h-4 w-4" /> Post Job
+            </TabsTrigger>
+            <TabsTrigger value="advisories" className="flex items-center gap-2" data-testid="tab-advisories">
+              <AlertTriangle className="h-4 w-4" /> Advisories
             </TabsTrigger>
             <TabsTrigger value="system" className="flex items-center gap-2" data-testid="tab-system">
               <Settings className="h-4 w-4" /> System
@@ -949,10 +1011,10 @@ export default function AdminDashboard() {
                       >
                         Previous
                       </Button>
-                      <span className="text-sm text-muted-foreground">Page {jobsPage}</span>
+                      <span className="text-sm text-muted-foreground">Page {jobsPage} ({jobsData?.total ?? 0} total)</span>
                       <Button
                         variant="outline" size="sm"
-                        disabled={(jobsData?.jobs?.length || 0) < JOBS_PAGE_SIZE}
+                        disabled={!(jobsData?.hasMore ?? false)}
                         onClick={() => setJobsPage((p) => p + 1)}
                         data-testid="jobs-next-page"
                       >
@@ -1170,6 +1232,125 @@ export default function AdminDashboard() {
                     )}
                   </div>
 
+                  <div>
+                    <Label htmlFor="job-mode">Posting Type</Label>
+                    <Select value={jobModeWatch} onValueChange={(v) => jobForm.setValue("jobMode", v)}>
+                      <SelectTrigger id="job-mode" data-testid="select-job-mode-admin"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixed load -- one carrier takes the whole job</SelectItem>
+                        <SelectItem value="tender">Tender -- bulk load, many carriers bid on portions</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {jobModeWatch === 'tender' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <div>
+                        <Label htmlFor="job-total-quantity">Total Quantity</Label>
+                        <Input id="job-total-quantity" type="number" {...jobForm.register("totalQuantity", { valueAsNumber: true })} placeholder="e.g. 4000" data-testid="input-job-total-quantity" />
+                      </div>
+                      <div>
+                        <Label htmlFor="job-quantity-unit">Unit</Label>
+                        <Input id="job-quantity-unit" {...jobForm.register("quantityUnit")} placeholder="e.g. tons" data-testid="input-job-quantity-unit" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">Rate & Payment</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="job-rate-amount">Rate</Label>
+                        <Input id="job-rate-amount" {...jobForm.register("rateAmount")} placeholder="Leave blank for 'quote'" data-testid="input-job-rate-amount" />
+                      </div>
+                      <div>
+                        <Label htmlFor="job-rate-basis">Rate Basis</Label>
+                        <Select value={jobForm.watch("rateBasis")} onValueChange={(v) => jobForm.setValue("rateBasis", v)}>
+                          <SelectTrigger id="job-rate-basis" data-testid="select-job-rate-basis"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="flat">Flat</SelectItem>
+                            <SelectItem value="per_ton">Per ton</SelectItem>
+                            <SelectItem value="per_km">Per km</SelectItem>
+                            <SelectItem value="per_load">Per load</SelectItem>
+                            <SelectItem value="quote">Quote on request</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="job-rate-currency">Currency</Label>
+                        <Select value={jobForm.watch("rateCurrency")} onValueChange={(v) => jobForm.setValue("rateCurrency", v)}>
+                          <SelectTrigger id="job-rate-currency" data-testid="select-job-rate-currency"><SelectValue placeholder="Select currency" /></SelectTrigger>
+                          <SelectContent>
+                            {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <Label htmlFor="job-payment-terms">Payment Terms</Label>
+                        <Input id="job-payment-terms" {...jobForm.register("paymentTerms")} placeholder='e.g. "COD", "30 days"' data-testid="input-job-payment-terms" />
+                      </div>
+                      <div className="flex items-center space-x-2 mt-6">
+                        <Checkbox
+                          id="job-diesel-on-account"
+                          checked={jobForm.watch("dieselOnAccount")}
+                          onCheckedChange={(checked) => jobForm.setValue("dieselOnAccount", !!checked)}
+                          data-testid="checkbox-job-diesel-on-account"
+                        />
+                        <Label htmlFor="job-diesel-on-account" className="text-sm font-normal">Diesel on account</Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">Equipment & Compliance</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <Label htmlFor="job-truck-type">Truck Type</Label>
+                        <Select value={jobForm.watch("truckType")} onValueChange={(v) => jobForm.setValue("truckType", v)}>
+                          <SelectTrigger id="job-truck-type" data-testid="select-job-truck-type"><SelectValue placeholder="Select truck type" /></SelectTrigger>
+                          <SelectContent>
+                            {TRUCK_TYPE_OPTIONS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="job-distance-km">Distance (km, optional)</Label>
+                        <Input id="job-distance-km" type="number" {...jobForm.register("distanceKm", { valueAsNumber: true })} data-testid="input-job-distance-km" />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-6">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="job-requires-hazmat"
+                          checked={jobForm.watch("requiresHazmat")}
+                          onCheckedChange={(checked) => jobForm.setValue("requiresHazmat", !!checked)}
+                          data-testid="checkbox-job-requires-hazmat"
+                        />
+                        <Label htmlFor="job-requires-hazmat" className="text-sm font-normal">Hazmat certified required</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="job-requires-trec"
+                          checked={jobForm.watch("requiresTrec")}
+                          onCheckedChange={(checked) => jobForm.setValue("requiresTrec", !!checked)}
+                          data-testid="checkbox-job-requires-trec"
+                        />
+                        <Label htmlFor="job-requires-trec" className="text-sm font-normal">TREC card required</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="job-requires-placards"
+                          checked={jobForm.watch("requiresPlacards")}
+                          onCheckedChange={(checked) => jobForm.setValue("requiresPlacards", !!checked)}
+                          data-testid="checkbox-job-requires-placards"
+                        />
+                        <Label htmlFor="job-requires-placards" className="text-sm font-normal">Placards required</Label>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="job-cargo-type">Cargo Type</Label>
@@ -1286,6 +1467,72 @@ export default function AdminDashboard() {
                 </form>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ADVISORIES */}
+          <TabsContent value="advisories" className="mt-6" data-testid="advisories-content">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" /> Post an Advisory
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={advisoryForm.handleSubmit((data) => postAdvisoryMutation.mutate(data))} className="space-y-4">
+                    <div>
+                      <Label htmlFor="advisory-title">Title</Label>
+                      <Input id="advisory-title" {...advisoryForm.register("title")} placeholder="e.g. Kasumbalesa border weighbridge delay" data-testid="input-advisory-title" />
+                      {advisoryForm.formState.errors.title && (
+                        <p className="text-destructive text-sm mt-1">{advisoryForm.formState.errors.title.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="advisory-body">Details</Label>
+                      <Textarea id="advisory-body" {...advisoryForm.register("body")} data-testid="textarea-advisory-body" />
+                      {advisoryForm.formState.errors.body && (
+                        <p className="text-destructive text-sm mt-1">{advisoryForm.formState.errors.body.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="advisory-country">Country (optional -- leave blank for all corridors)</Label>
+                      <Select value={advisoryForm.watch("country")} onValueChange={(v) => advisoryForm.setValue("country", v)}>
+                        <SelectTrigger id="advisory-country" data-testid="select-advisory-country"><SelectValue placeholder="All countries" /></SelectTrigger>
+                        <SelectContent>
+                          {COUNTRY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="submit" disabled={postAdvisoryMutation.isPending} data-testid="submit-advisory">
+                      {postAdvisoryMutation.isPending ? "Posting..." : "Post Advisory"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Advisories</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(advisoriesData?.advisories || []).length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No advisories posted yet.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {advisoriesData.advisories.map((a: any) => (
+                        <div key={a.id} className="border-b border-border last:border-0 pb-3 last:pb-0" data-testid={`advisory-row-${a.id}`}>
+                          <p className="font-medium text-sm">{a.title}</p>
+                          <p className="text-muted-foreground text-sm mt-0.5">{a.body}</p>
+                          <p className="text-muted-foreground text-xs mt-1">
+                            {new Date(a.createdAt).toLocaleDateString()}{a.country ? ` · ${a.country}` : ' · All countries'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* SYSTEM */}

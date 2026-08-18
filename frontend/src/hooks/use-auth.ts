@@ -13,6 +13,8 @@ interface User {
   emailVerified: boolean;
   fleetSize?: number;
   cargoTypes?: string[];
+  documents?: { filename: string; fileUrl: string; verified: boolean }[];
+  verified?: boolean;
 }
 
 interface AuthResponse {

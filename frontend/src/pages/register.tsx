@@ -88,6 +88,7 @@ export default function Register() {
 
   const [selectedCargoTypes, setSelectedCargoTypes] = useState<string[]>([]);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [truckingFiles, setTruckingFiles] = useState<File[]>([]);
 
   const cargoTypeOptions = [
     { value: "general", label: "General Cargo" },
@@ -138,7 +139,17 @@ export default function Register() {
     }
 
     try {
-      await register({ type: "trucking", userData: data });
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (key === "cargoTypes" && Array.isArray(value)) {
+          value.forEach((v) => formData.append("cargoTypes", v));
+        } else if (value !== undefined && value !== null) {
+          formData.append(key, String(value));
+        }
+      });
+      truckingFiles.forEach((file) => formData.append("documents", file));
+
+      await register({ type: "trucking", userData: formData });
       navigate("/check-your-email");
     } catch (error) {
       // Error handled by useAuth hook
@@ -359,8 +370,8 @@ export default function Register() {
 
                     <div>
                       <Label className="text-base font-medium mb-2 block">Business License Upload</Label>
-                      <FileUpload 
-                        onFileUpload={(files) => console.log('Files uploaded:', files)}
+                      <FileUpload
+                        onFileUpload={(files) => setTruckingFiles((prev) => [...prev, ...files])}
                         accept=".pdf,.jpg,.jpeg,.png"
                         multiple={true}
                         data-testid="file-upload-license"

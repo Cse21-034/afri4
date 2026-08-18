@@ -4,20 +4,25 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
 import { storage } from "./storage.js";
 import { WebSocketService } from "./services/services/websocket.js";
 import { emailService } from "./services/services/email.js";
 import { stripeService } from "./services/services/stripe.js";
 import { authenticateToken, requireRole, requireSubscription, AuthRequest } from "./middleware/middleware/auth.js";
-import { 
-  loginSchema, 
-  registerTruckingSchema, 
-  registerShippingSchema, 
+import { uploadBufferToCloudinary, isCloudinaryConfigured } from "./services/services/cloudinary.js";
+import {
+  loginSchema,
+  registerTruckingSchema,
+  registerShippingSchema,
   insertJobSchema,
+  updateJobSchema,
+  submitBidSchema,
+  bidDecisionSchema,
+  insertAdvisorySchema,
   UserRole,
-  JobStatus 
+  JobStatus,
+  JobMode
 } from "./shared/schema.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
@@ -26,22 +31,10 @@ if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
   console.warn('JWT_SECRET not set. Using development secret.');
 }
 
-// Configure multer for file uploads
-const uploadDir = 'uploads';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
+// Files are held in memory just long enough to stream to Cloudinary -- never written to
+// local disk, which is ephemeral on Render and would lose every upload on the next deploy.
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit
   },
@@ -109,25 +102,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize WebSocket service
   const wsService = new WebSocketService(httpServer);
 
-  // Serve uploaded files
-  app.use('/uploads', authenticateToken, (req, res, next) => {
-    // Add access control logic here if needed
-    next();
-  }, (req, res, next) => {
-    const filePath = path.join(uploadDir, req.url);
-    if (fs.existsSync(filePath)) {
-      res.sendFile(path.resolve(filePath));
-    } else {
-      res.status(404).json({ message: 'File not found' });
-    }
-  });
-
   // ==================== AUTHENTICATION ROUTES ====================
 
-  // Register Trucking Company
-  app.post('/api/auth/register/trucking', async (req, res) => {
+  // Register Trucking Company. Accepts multipart/form-data so business license/verification
+  // documents can be attached in the same request instead of a separate authenticated upload step.
+  app.post('/api/auth/register/trucking', upload.array('documents', 5), async (req, res) => {
     try {
-      const validatedData = registerTruckingSchema.parse(req.body);
+      // multipart/form-data delivers every field as a string -- coerce the ones the schema
+      // expects as number/array before validating.
+      const rawBody = {
+        ...req.body,
+        fleetSize: req.body.fleetSize !== undefined ? Number(req.body.fleetSize) : undefined,
+        cargoTypes: req.body.cargoTypes === undefined
+          ? []
+          : Array.isArray(req.body.cargoTypes) ? req.body.cargoTypes : [req.body.cargoTypes],
+      };
+      const validatedData = registerTruckingSchema.parse(rawBody);
 
       // Check if phone number already registered
       const existingByPhone = await storage.getUserByPhoneNumber(validatedData.phoneNumber);
@@ -160,6 +150,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (!emailSent) {
           console.warn('Failed to send verification email to:', user.email);
+        }
+      }
+
+      // Attach any verification documents submitted with the form. This is best-effort --
+      // the account was already created, so a Cloudinary hiccup shouldn't fail registration.
+      const files = req.files as Express.Multer.File[] | undefined;
+      if (files && files.length > 0) {
+        if (isCloudinaryConfigured()) {
+          try {
+            const uploadedUrls = await Promise.all(
+              files.map((file) => uploadBufferToCloudinary(file.buffer, file.originalname))
+            );
+            const documents = files.map((file, i) => ({
+              filename: file.originalname,
+              fileUrl: uploadedUrls[i],
+              verified: false
+            }));
+            await storage.updateUser(user.id, { documents });
+          } catch (uploadError) {
+            console.error('Failed to upload registration documents:', uploadError);
+          }
+        } else {
+          console.warn('Cloudinary not configured -- skipping documents submitted at registration.');
         }
       }
 
@@ -596,7 +609,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailVerified: req.user!.emailVerified,
         twoFactorEnabled: req.user!.twoFactorEnabled,
         fleetSize: req.user!.fleetSize,
-        cargoTypes: req.user!.cargoTypes
+        cargoTypes: req.user!.cargoTypes,
+        documents: req.user!.documents,
+        verified: req.user!.verified
       }
     });
   });
@@ -604,22 +619,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Document upload route
   app.post('/api/auth/upload-documents', authenticateToken, upload.array('documents', 5), async (req: AuthRequest, res) => {
     try {
+      if (!isCloudinaryConfigured()) {
+        return res.status(503).json({ message: 'Document uploads are not configured yet. Contact support.' });
+      }
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No files uploaded' });
       }
 
-      const documents = (req.files as Express.Multer.File[]).map(file => ({
+      const files = req.files as Express.Multer.File[];
+      const uploadedUrls = await Promise.all(
+        files.map((file) => uploadBufferToCloudinary(file.buffer, file.originalname))
+      );
+
+      const newDocuments = files.map((file, i) => ({
         filename: file.originalname,
-        fileUrl: `/uploads/${file.filename}`,
+        fileUrl: uploadedUrls[i],
         verified: false
       }));
 
-      await storage.updateUser(req.user!.id, { documents });
-      const updatedUser = await storage.getUserById(req.user!.id);
+      // Append rather than replace -- a second upload shouldn't erase documents from the first.
+      const existingUser = await storage.getUserById(req.user!.id);
+      const documents = [...(existingUser?.documents || []), ...newDocuments];
 
-      res.json({ 
+      await storage.updateUser(req.user!.id, { documents });
+
+      res.json({
         message: 'Documents uploaded successfully',
-        documents: updatedUser?.documents || []
+        documents
       });
     } catch (error: any) {
       console.error('Document upload error:', error);
@@ -634,6 +660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isAdmin = req.user!.role === UserRole.SUPER_ADMIN || req.user!.role === UserRole.CUSTOMER_SUPPORT;
 
       let shipperId = req.user!.id;
+      let postedByAdminId: number | undefined;
       if (isAdmin) {
         if (!req.body.shipperId) {
           return res.status(400).json({ message: 'shipperId is required when posting a job as admin' });
@@ -643,16 +670,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: 'shipperId must belong to an existing shipping entity' });
         }
         shipperId = shipper.id;
+        postedByAdminId = req.user!.id;
+      }
+
+      // Tenders post a total quantity to be covered across many carriers' bids, instead of
+      // one carrier taking the whole job -- reject an obviously-missing total up front.
+      if (req.body.jobMode === JobMode.TENDER && !req.body.totalQuantity) {
+        return res.status(400).json({ message: 'totalQuantity is required for a tender job' });
       }
 
       const jobData = insertJobSchema.parse({
         ...req.body,
         shipperId,
+        postedByAdminId,
         pickupDate: req.body.pickupDate ? new Date(req.body.pickupDate) : undefined,
-        deliveryDeadline: req.body.deliveryDeadline ? new Date(req.body.deliveryDeadline) : undefined
+        deliveryDeadline: req.body.deliveryDeadline ? new Date(req.body.deliveryDeadline) : undefined,
+        // numeric columns round-trip as strings (avoids float precision loss on money) --
+        // the client may reasonably send a JS number, so normalize it here rather than
+        // rejecting a perfectly valid rate.
+        rateAmount: req.body.rateAmount !== undefined && req.body.rateAmount !== null && req.body.rateAmount !== ''
+          ? String(req.body.rateAmount)
+          : undefined
       });
 
       const job = await storage.createJob(jobData as any);
+
+      // Multi-stop routes -- stored separately from the summary pickup/delivery address.
+      if (Array.isArray(req.body.stops) && req.body.stops.length > 0) {
+        const stops = req.body.stops.map((s: any, i: number) => ({
+          sequence: typeof s.sequence === 'number' ? s.sequence : i,
+          stopType: s.stopType,
+          address: s.address,
+          country: s.country,
+        }));
+        await storage.createJobStops(job.id, stops);
+      }
 
       // Notify relevant trucking companies
       wsService.sendJobUpdate(job.id, {
@@ -669,12 +721,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/jobs', authenticateToken, requireSubscription, async (req: AuthRequest, res) => {
     try {
-      const { 
-        status, 
-        cargoType, 
-        industry, 
-        pickupCountry, 
+      const {
+        status,
+        cargoType,
+        industry,
+        pickupCountry,
         deliveryCountry,
+        truckType,
+        jobMode,
         page = '1',
         limit = '20'
       } = req.query;
@@ -685,6 +739,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (industry) filters.industry = industry;
       if (pickupCountry) filters.pickupCountry = pickupCountry;
       if (deliveryCountry) filters.deliveryCountry = deliveryCountry;
+      if (truckType) filters.truckType = truckType;
+      if (jobMode) filters.jobMode = jobMode;
 
       // For trucking companies, only show available jobs
       if (req.user!.role === UserRole.TRUCKING_COMPANY) {
@@ -695,9 +751,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limitNum = parseInt(limit as string);
       const skip = (pageNum - 1) * limitNum;
 
-      const jobs = await storage.getJobs({ ...filters, limit: limitNum, offset: skip });
+      const { jobs, total } = await storage.getJobs({ ...filters, limit: limitNum, offset: skip });
 
-      res.json({ jobs });
+      res.json({ jobs, total, page: pageNum, limit: limitNum, hasMore: skip + jobs.length < total });
     } catch (error: any) {
       console.error('Jobs fetch error:', error);
       res.status(500).json({ message: 'Failed to fetch jobs' });
@@ -719,6 +775,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('My jobs fetch error:', error);
       res.status(500).json({ message: 'Failed to fetch your jobs' });
+    }
+  });
+
+  // Job detail, including its multi-stop route if it has one -- the list endpoints only
+  // return the summary pickup/delivery address.
+  app.get('/api/jobs/:id', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const job = await storage.getJobById(Number(id));
+      if (!job) return res.status(404).json({ message: 'Job not found' });
+
+      const stops = await storage.getJobStopsByJob(Number(id));
+      res.json({ job, stops });
+    } catch (error: any) {
+      console.error('Job detail fetch error:', error);
+      res.status(500).json({ message: 'Failed to fetch job' });
+    }
+  });
+
+  // A shipper correcting/updating their own posting -- only while it's still 'available'.
+  // Once a carrier has taken it (or bids exist on a tender), the details are locked; the
+  // shipper would need to cancel and re-post instead of pulling the rug on a committed carrier.
+  app.patch('/api/jobs/:id', authenticateToken, requireRole([UserRole.SHIPPING_ENTITY]), async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const updates = updateJobSchema.parse(req.body);
+
+      const data: Record<string, any> = { ...updates };
+      if (updates.pickupDate) data.pickupDate = new Date(updates.pickupDate as any);
+      if (updates.deliveryDeadline) data.deliveryDeadline = new Date(updates.deliveryDeadline as any);
+      if (updates.rateAmount !== undefined) data.rateAmount = String(updates.rateAmount);
+
+      const job = await storage.editJob(Number(id), req.user!.id, data);
+      if (!job) {
+        return res.status(409).json({ message: 'Job not found, not yours, or no longer available to edit' });
+      }
+
+      res.json({ message: 'Job updated successfully', job });
+    } catch (error: any) {
+      console.error('Job edit error:', error);
+      res.status(400).json({ message: error.message || 'Failed to update job' });
     }
   });
 
@@ -746,6 +843,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // The reverse of take -- a carrier backing out returns the job to the pool instead of
+  // it being stuck with no path back except an admin cancellation.
+  app.patch('/api/jobs/:id/release', authenticateToken, requireRole([UserRole.TRUCKING_COMPANY]), async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const job = await storage.releaseJob(Number(id), req.user!.id);
+
+      if (!job) {
+        return res.status(404).json({ message: 'Job not found, not assigned to you, or not currently taken' });
+      }
+
+      wsService.sendNotificationToUser(job.shipperId, {
+        type: 'job_taken',
+        title: 'Job Released',
+        message: `${req.user!.companyName} released a job back to available`,
+        data: { jobId: job.id }
+      });
+
+      res.json({ message: 'Job released successfully', job });
+    } catch (error: any) {
+      console.error('Job release error:', error);
+      res.status(500).json({ message: 'Failed to release job' });
+    }
+  });
+
   app.patch('/api/jobs/:id/complete', authenticateToken, async (req: AuthRequest, res) => {
     try {
       const { id } = req.params;
@@ -755,11 +877,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Job not found' });
       }
 
-      // Check permissions
+      // Check permissions. Tender jobs have no single carrierId (multiple carriers can hold
+      // accepted bids), so only the shipper can mark those complete.
       if (req.user!.role === UserRole.SHIPPING_ENTITY && job.shipperId !== req.user!.id) {
         return res.status(403).json({ message: 'Not authorized to complete this job' });
-      } else if (req.user!.role === UserRole.TRUCKING_COMPANY && job.carrierId !== req.user!.id) {
-        return res.status(403).json({ message: 'Not authorized to complete this job' });
+      } else if (req.user!.role === UserRole.TRUCKING_COMPANY) {
+        if (job.jobMode === JobMode.TENDER) {
+          return res.status(403).json({ message: 'Tender jobs are marked complete by the shipper' });
+        }
+        if (job.carrierId !== req.user!.id) {
+          return res.status(403).json({ message: 'Not authorized to complete this job' });
+        }
       }
 
       const completedJob = await storage.completeJob(id);
@@ -785,6 +913,190 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Job complete error:', error);
       res.status(500).json({ message: 'Failed to complete job' });
+    }
+  });
+
+  // ==================== JOB BIDS (tender mode) ====================
+  // A tender job stays 'available' and browsable while carriers bid a rate + how much of
+  // totalQuantity they can cover, instead of one carrier taking the whole job.
+
+  app.post('/api/jobs/:id/bids', authenticateToken, requireRole([UserRole.TRUCKING_COMPANY]), requireSubscription, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const job = await storage.getJobById(Number(id));
+      if (!job) return res.status(404).json({ message: 'Job not found' });
+      if (job.jobMode !== JobMode.TENDER) {
+        return res.status(400).json({ message: 'This job is not open for bids' });
+      }
+      if (job.status !== JobStatus.AVAILABLE) {
+        return res.status(400).json({ message: 'This tender is no longer accepting bids' });
+      }
+
+      const existing = await storage.getBidByJobAndCarrier(Number(id), req.user!.id);
+      if (existing) {
+        return res.status(409).json({ message: 'You already have a bid on this job -- withdraw it first to submit a new one' });
+      }
+
+      const bidData = submitBidSchema.parse(req.body);
+      const bid = await storage.createBid({
+        jobId: Number(id),
+        carrierId: req.user!.id,
+        ...bidData,
+        rateAmount: bidData.rateAmount !== undefined ? String(bidData.rateAmount) : undefined
+      } as any);
+
+      wsService.sendNotificationToUser(job.shipperId, {
+        type: 'job_match',
+        title: 'New Bid Received',
+        message: `${req.user!.companyName} placed a bid on your tender`,
+        data: { jobId: job.id, bidId: bid.id }
+      });
+
+      res.status(201).json({ message: 'Bid submitted successfully', bid });
+    } catch (error: any) {
+      console.error('Bid submission error:', error);
+      res.status(400).json({ message: error.message || 'Failed to submit bid' });
+    }
+  });
+
+  app.get('/api/jobs/:id/bids', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const job = await storage.getJobById(Number(id));
+      if (!job) return res.status(404).json({ message: 'Job not found' });
+
+      const isAdmin = req.user!.role === UserRole.SUPER_ADMIN || req.user!.role === UserRole.CUSTOMER_SUPPORT;
+      if (!isAdmin && job.shipperId !== req.user!.id) {
+        return res.status(403).json({ message: 'Not authorized to view bids on this job' });
+      }
+
+      const bids = await storage.getBidsByJob(Number(id));
+      const capacityCovered = bids
+        .filter((b) => b.status === 'accepted')
+        .reduce((sum, b) => sum + (b.capacityOffered || 0), 0);
+
+      res.json({ bids, capacityCovered, totalQuantity: job.totalQuantity });
+    } catch (error: any) {
+      console.error('Bids fetch error:', error);
+      res.status(500).json({ message: 'Failed to fetch bids' });
+    }
+  });
+
+  app.patch('/api/jobs/:id/bids/:bidId', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { id, bidId } = req.params;
+      const { status } = bidDecisionSchema.parse(req.body);
+
+      const job = await storage.getJobById(Number(id));
+      if (!job) return res.status(404).json({ message: 'Job not found' });
+
+      const bid = await storage.getBidById(Number(bidId));
+      if (!bid || bid.jobId !== Number(id)) {
+        return res.status(404).json({ message: 'Bid not found' });
+      }
+
+      const isAdmin = req.user!.role === UserRole.SUPER_ADMIN || req.user!.role === UserRole.CUSTOMER_SUPPORT;
+
+      if (status === 'withdrawn') {
+        if (bid.carrierId !== req.user!.id) {
+          return res.status(403).json({ message: 'Only the carrier who placed this bid can withdraw it' });
+        }
+      } else if (!isAdmin && job.shipperId !== req.user!.id) {
+        return res.status(403).json({ message: 'Only the shipper can accept or reject bids' });
+      }
+
+      const updatedBid = await storage.updateBidStatus(Number(bidId), status);
+
+      if (status === 'accepted' && updatedBid) {
+        wsService.sendNotificationToUser(updatedBid.carrierId, {
+          type: 'job_match',
+          title: 'Bid Accepted',
+          message: `Your bid was accepted on a tender job`,
+          data: { jobId: job.id, bidId: updatedBid.id }
+        });
+
+        // Once accepted bids cover the full tender quantity, stop taking new bids.
+        const allBids = await storage.getBidsByJob(Number(id));
+        const capacityCovered = allBids
+          .filter((b) => b.status === 'accepted')
+          .reduce((sum, b) => sum + (b.capacityOffered || 0), 0);
+        if (job.totalQuantity && capacityCovered >= job.totalQuantity) {
+          await storage.updateJob(job.id, { status: JobStatus.TAKEN as any });
+        }
+      } else if (status === 'rejected' && updatedBid) {
+        wsService.sendNotificationToUser(updatedBid.carrierId, {
+          type: 'job_match',
+          title: 'Bid Rejected',
+          message: `Your bid was not accepted on a tender job`,
+          data: { jobId: job.id, bidId: updatedBid.id }
+        });
+      }
+
+      res.json({ message: `Bid ${status}`, bid: updatedBid });
+    } catch (error: any) {
+      console.error('Bid decision error:', error);
+      res.status(400).json({ message: error.message || 'Failed to update bid' });
+    }
+  });
+
+  // ==================== CARRIER CAPABILITIES ====================
+  // A trucking company's declared fleet/reach, so jobs can be filtered/matched by
+  // equipment (truck_type on the job) instead of relying on a phone call.
+
+  app.get('/api/carrier/capabilities', authenticateToken, requireRole([UserRole.TRUCKING_COMPANY]), async (req: AuthRequest, res) => {
+    try {
+      const capabilities = await storage.getCarrierCapabilities(req.user!.id);
+      res.json({ capabilities });
+    } catch (error: any) {
+      console.error('Carrier capabilities fetch error:', error);
+      res.status(500).json({ message: 'Failed to fetch capabilities' });
+    }
+  });
+
+  app.put('/api/carrier/capabilities', authenticateToken, requireRole([UserRole.TRUCKING_COMPANY]), async (req: AuthRequest, res) => {
+    try {
+      const { truckTypes, crossBorder, hazmatCertified, countries, features } = req.body;
+      const capabilities = await storage.upsertCarrierCapabilities(req.user!.id, {
+        truckTypes,
+        crossBorder,
+        hazmatCertified,
+        countries,
+        features
+      } as any);
+
+      res.json({ message: 'Capabilities updated', capabilities });
+    } catch (error: any) {
+      console.error('Carrier capabilities update error:', error);
+      res.status(400).json({ message: error.message || 'Failed to update capabilities' });
+    }
+  });
+
+  // ==================== ADVISORIES ====================
+  // Broadcast notices that aren't jobs (border delays, weighbridge updates) but matter
+  // to the same carrier/shipper audience.
+
+  app.get('/api/advisories', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const { country, limit = '20' } = req.query;
+      const advisories = await storage.getAdvisories({
+        country: country as string | undefined,
+        limit: Number(limit)
+      });
+      res.json({ advisories });
+    } catch (error: any) {
+      console.error('Advisories fetch error:', error);
+      res.status(500).json({ message: 'Failed to fetch advisories' });
+    }
+  });
+
+  app.post('/api/admin/advisories', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
+    try {
+      const data = insertAdvisorySchema.parse({ ...req.body, postedByAdminId: req.user!.id });
+      const advisory = await storage.createAdvisory(data as any);
+      res.status(201).json({ message: 'Advisory posted', advisory });
+    } catch (error: any) {
+      console.error('Advisory creation error:', error);
+      res.status(400).json({ message: error.message || 'Failed to post advisory' });
     }
   });
 
@@ -1178,16 +1490,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/jobs', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
     try {
       const { status, search, page = '1', limit = '20' } = req.query;
-      const offset = (Number(page) - 1) * Number(limit);
+      const pageNum = Number(page);
+      const limitNum = Number(limit);
+      const offset = (pageNum - 1) * limitNum;
 
-      const jobsList = await storage.getAllJobsAdmin({
+      const { jobs: jobsList, total } = await storage.getAllJobsAdmin({
         status: status && status !== 'all' ? status as string : undefined,
         search: search as string | undefined,
-        limit: Number(limit),
+        limit: limitNum,
         offset,
       });
 
-      res.json({ jobs: jobsList });
+      res.json({ jobs: jobsList, total, page: pageNum, limit: limitNum, hasMore: offset + jobsList.length < total });
     } catch (error: any) {
       console.error('Admin jobs list error:', error);
       res.status(500).json({ message: 'Failed to fetch jobs' });

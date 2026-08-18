@@ -18,11 +18,13 @@ export async function apiRequest(
 ): Promise<Response> {
   const token = localStorage.getItem('auth_token');
   const headers: Record<string, string> = {};
-  
-  if (data) {
+  const isFormData = data instanceof FormData;
+
+  // Let the browser set the multipart Content-Type (with boundary) itself for FormData.
+  if (data && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
-  
+
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -30,11 +32,11 @@ export async function apiRequest(
   // Use backend URL for API requests
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url}`;
-  
+
   const res = await fetch(fullUrl, {
     method,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
+    body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
   });
 

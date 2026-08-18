@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pgTable, serial, text, varchar, integer, boolean, timestamp, json, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, integer, numeric, boolean, timestamp, json, pgEnum, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
 
@@ -12,6 +12,11 @@ export const countryEnum = pgEnum('country', ['AGO', 'BWA', 'COM', 'COD', 'SWZ',
 export const subscriptionStatusEnum = pgEnum('subscription_status', ['active', 'inactive', 'trial']);
 export const notificationTypeEnum = pgEnum('notification_type', ['job_match', 'job_taken', 'job_completed', 'payment_confirmed', 'subscription_expiring']);
 export const disputeStatusEnum = pgEnum('dispute_status', ['open', 'in_review', 'resolved', 'closed']);
+export const rateBasisEnum = pgEnum('rate_basis', ['flat', 'per_ton', 'per_km', 'per_load', 'quote']);
+export const truckTypeEnum = pgEnum('truck_type', ['tri_axle', 'superlink', 'link', 'tautliner', 'flat_deck', 'pantech', 'tanker', 'tipper', 'lowbed', 'reefer', 'side_tipper', 'other']);
+export const jobModeEnum = pgEnum('job_mode', ['fixed', 'tender']);
+export const bidStatusEnum = pgEnum('bid_status', ['pending', 'accepted', 'rejected', 'withdrawn']);
+export const stopTypeEnum = pgEnum('stop_type', ['pickup', 'delivery']);
 
 // User roles
 export const UserRole = {
@@ -89,6 +94,61 @@ export const Country = {
 
 export type CountryType = typeof Country[keyof typeof Country];
 
+// Rate basis -- how rate_amount should be interpreted (a flat R8,000 and a R500/ton
+// rate are not comparable as a bare number, the basis is what makes them mean something)
+export const RateBasis = {
+  FLAT: 'flat',
+  PER_TON: 'per_ton',
+  PER_KM: 'per_km',
+  PER_LOAD: 'per_load',
+  QUOTE: 'quote'
+} as const;
+
+export type RateBasisType = typeof RateBasis[keyof typeof RateBasis];
+
+export const TruckType = {
+  TRI_AXLE: 'tri_axle',
+  SUPERLINK: 'superlink',
+  LINK: 'link',
+  TAUTLINER: 'tautliner',
+  FLAT_DECK: 'flat_deck',
+  PANTECH: 'pantech',
+  TANKER: 'tanker',
+  TIPPER: 'tipper',
+  LOWBED: 'lowbed',
+  REEFER: 'reefer',
+  SIDE_TIPPER: 'side_tipper',
+  OTHER: 'other'
+} as const;
+
+export type TruckTypeType = typeof TruckType[keyof typeof TruckType];
+
+// Job mode -- 'fixed' is the original one-job-one-carrier lifecycle (unchanged).
+// 'tender' is for bulk loads where a shipper posts a total quantity and many
+// carriers each bid a rate + how much of it they can cover (see jobBids).
+export const JobMode = {
+  FIXED: 'fixed',
+  TENDER: 'tender'
+} as const;
+
+export type JobModeType = typeof JobMode[keyof typeof JobMode];
+
+export const BidStatus = {
+  PENDING: 'pending',
+  ACCEPTED: 'accepted',
+  REJECTED: 'rejected',
+  WITHDRAWN: 'withdrawn'
+} as const;
+
+export type BidStatusType = typeof BidStatus[keyof typeof BidStatus];
+
+export const StopType = {
+  PICKUP: 'pickup',
+  DELIVERY: 'delivery'
+} as const;
+
+export type StopTypeType = typeof StopType[keyof typeof StopType];
+
 // Database Tables
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -146,37 +206,121 @@ export const jobs = pgTable('jobs', {
   id: serial('id').primaryKey(),
   shipperId: integer('shipper_id').notNull().references(() => users.id),
   carrierId: integer('carrier_id').references(() => users.id),
-  
+  // Set only when an admin posted this job on a shipping entity's behalf --
+  // shipperId still points at the company, this is just an audit trail of who typed it in.
+  postedByAdminId: integer('posted_by_admin_id').references(() => users.id),
+
   // Cargo details -- all optional: not every job has a known weight/volume/deadline upfront,
   // let the poster fill in only what they actually know.
   cargoType: cargoTypeEnum('cargo_type'),
   cargoWeight: integer('cargo_weight'), // in kg
   cargoVolume: integer('cargo_volume'), // in m³
   industry: industryEnum('industry'),
+  quantity: integer('quantity').notNull().default(1), // number of loads, for multi-load fixed jobs
 
   // Locations
   pickupAddress: text('pickup_address'),
   deliveryAddress: text('delivery_address'),
   pickupCountry: countryEnum('pickup_country'),
   deliveryCountry: countryEnum('delivery_country'),
+  distanceKm: integer('distance_km'),
 
   // Schedule
   pickupDate: timestamp('pickup_date'),
   deliveryDeadline: timestamp('delivery_deadline'),
-  
+
   // Requirements
   specialHandling: text('special_handling'),
   insuranceRequired: boolean('insurance_required').notNull().default(false),
   notes: text('notes'),
-  
+
+  // Equipment -- what kind of truck this load actually needs
+  truckType: truckTypeEnum('truck_type'),
+  truckRequirements: text('truck_requirements').array(), // e.g. ['pole_pockets', 'closed_body']
+
+  // Structured compliance -- promoted out of free-text notes so they're filterable
+  requiresHazmat: boolean('requires_hazmat').notNull().default(false),
+  requiresTrec: boolean('requires_trec').notNull().default(false),
+  requiresPlacards: boolean('requires_placards').notNull().default(false),
+  permits: text('permits').array(), // e.g. ['RIT', 'Agri Permit', 'MPR manifest']
+
+  // Commerce -- the rate and terms, without which a carrier can't decide on a job
+  rateAmount: numeric('rate_amount'), // null when rateBasis is 'quote'
+  rateBasis: rateBasisEnum('rate_basis').notNull().default('flat'),
+  rateCurrency: varchar('rate_currency', { length: 10 }),
+  paymentTerms: text('payment_terms'), // free text -- real-world phrasing varies too much to enum
+  dieselOnAccount: boolean('diesel_on_account').notNull().default(false),
+
+  // Tender mode -- 'fixed' jobs are unchanged (one carrier takes the whole job).
+  // 'tender' jobs stay browsable while many carriers bid via jobBids; carrierId
+  // stays null for those, the accepted bids are the record of who's carrying what.
+  jobMode: jobModeEnum('job_mode').notNull().default('fixed'),
+  totalQuantity: integer('total_quantity'), // e.g. 4000, for tenders
+  quantityUnit: varchar('quantity_unit', { length: 20 }), // 'tons' | 'loads', etc.
+
   // Status
   status: jobStatusEnum('status').notNull().default('available'),
-  
+
   // Timestamps
   createdAt: timestamp('created_at').notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
   takenAt: timestamp('taken_at'),
   completedAt: timestamp('completed_at')
+});
+
+// Multiple pickup/delivery stops for a job (e.g. "pickup A, drop half at B, rest at C").
+// pickupAddress/deliveryAddress on the job stay as the summary origin/destination for
+// list views; this table is the detail, ordered by `sequence`.
+export const jobStops = pgTable('job_stops', {
+  id: serial('id').primaryKey(),
+  jobId: integer('job_id').notNull().references(() => jobs.id),
+  sequence: integer('sequence').notNull(),
+  stopType: stopTypeEnum('stop_type').notNull(),
+  address: text('address').notNull(),
+  country: countryEnum('country'),
+  createdAt: timestamp('created_at').notNull().default(sql`now()`)
+});
+
+// A carrier's bid on a tender job -- rate + how much of the total quantity they can cover.
+// The accepted bids on a tender ARE the assignment record (no separate table needed):
+// the tender is filled once accepted bids' capacityOffered sums to >= totalQuantity.
+export const jobBids = pgTable('job_bids', {
+  id: serial('id').primaryKey(),
+  jobId: integer('job_id').notNull().references(() => jobs.id),
+  carrierId: integer('carrier_id').notNull().references(() => users.id),
+  rateAmount: numeric('rate_amount'),
+  rateBasis: rateBasisEnum('rate_basis').notNull().default('per_ton'),
+  capacityOffered: integer('capacity_offered'), // how much of totalQuantity this carrier can cover
+  weeklyCapacity: integer('weekly_capacity'),
+  message: text('message'),
+  status: bidStatusEnum('status').notNull().default('pending'),
+  createdAt: timestamp('created_at').notNull().default(sql`now()`),
+  updatedAt: timestamp('updated_at').notNull().default(sql`now()`)
+}, (table) => ({
+  oneBidPerCarrierPerJob: unique().on(table.jobId, table.carrierId)
+}));
+
+// A trucking company's declared fleet/reach -- the mirror of a job's requirements,
+// so "which carriers can run this load" becomes a query instead of a phone call.
+export const carrierCapabilities = pgTable('carrier_capabilities', {
+  userId: integer('user_id').primaryKey().references(() => users.id),
+  truckTypes: truckTypeEnum('truck_types').array(),
+  crossBorder: boolean('cross_border').notNull().default(false),
+  hazmatCertified: boolean('hazmat_certified').notNull().default(false),
+  countries: countryEnum('countries').array(),
+  features: text('features').array(), // e.g. ['pole_pockets', 'tautliner_curtains']
+  updatedAt: timestamp('updated_at').notNull().default(sql`now()`)
+});
+
+// Broadcast notices that aren't jobs (border delays, weighbridge updates, etc.)
+// but matter to the same carrier/shipper audience.
+export const advisories = pgTable('advisories', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  body: text('body').notNull(),
+  country: countryEnum('country'),
+  postedByAdminId: integer('posted_by_admin_id').notNull().references(() => users.id),
+  createdAt: timestamp('created_at').notNull().default(sql`now()`)
 });
 
 export const chats = pgTable('chats', {
@@ -248,6 +392,14 @@ export const insertRatingSchema = createInsertSchema(ratings);
 export const selectRatingSchema = createSelectSchema(ratings);
 export const insertDisputeSchema = createInsertSchema(disputes);
 export const selectDisputeSchema = createSelectSchema(disputes);
+export const insertJobStopSchema = createInsertSchema(jobStops);
+export const selectJobStopSchema = createSelectSchema(jobStops);
+export const insertJobBidSchema = createInsertSchema(jobBids);
+export const selectJobBidSchema = createSelectSchema(jobBids);
+export const insertCarrierCapabilitiesSchema = createInsertSchema(carrierCapabilities);
+export const selectCarrierCapabilitiesSchema = createSelectSchema(carrierCapabilities);
+export const insertAdvisorySchema = createInsertSchema(advisories);
+export const selectAdvisorySchema = createSelectSchema(advisories);
 
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
@@ -261,6 +413,14 @@ export type InsertRating = typeof ratings.$inferInsert;
 export type SelectRating = typeof ratings.$inferSelect;
 export type InsertDispute = typeof disputes.$inferInsert;
 export type SelectDispute = typeof disputes.$inferSelect;
+export type InsertJobStop = typeof jobStops.$inferInsert;
+export type SelectJobStop = typeof jobStops.$inferSelect;
+export type InsertJobBid = typeof jobBids.$inferInsert;
+export type SelectJobBid = typeof jobBids.$inferSelect;
+export type InsertCarrierCapabilities = typeof carrierCapabilities.$inferInsert;
+export type SelectCarrierCapabilities = typeof carrierCapabilities.$inferSelect;
+export type InsertAdvisory = typeof advisories.$inferInsert;
+export type SelectAdvisory = typeof advisories.$inferSelect;
 
 // Legacy types for compatibility
 export type User = SelectUser;
@@ -269,6 +429,62 @@ export type Chat = SelectChat;
 export type Notification = SelectNotification;
 export type Rating = SelectRating;
 export type Dispute = SelectDispute;
+export type JobStop = SelectJobStop;
+export type JobBid = SelectJobBid;
+export type CarrierCapabilities = SelectCarrierCapabilities;
+export type Advisory = SelectAdvisory;
+
+// A shipper editing their own job: everything the job accepts on creation, minus
+// ownership (shipperId) and lifecycle (status) -- those only change via take/complete/
+// cancel/release, never a direct edit. Only allowed while the job is still 'available'
+// (enforced in the route, not here). Defined standalone rather than derived via
+// insertJobSchema.partial().omit(...) -- drizzle-zod's inferred shape doesn't chain
+// cleanly through omit/pick in this version.
+export const updateJobSchema = z.object({
+  cargoType: z.enum(Object.values(CargoType) as [string, ...string[]]).optional(),
+  cargoWeight: z.number().optional(),
+  cargoVolume: z.number().optional(),
+  industry: z.enum(Object.values(Industry) as [string, ...string[]]).optional(),
+  quantity: z.number().min(1).optional(),
+  pickupAddress: z.string().optional(),
+  deliveryAddress: z.string().optional(),
+  pickupCountry: z.enum(Object.values(Country) as [string, ...string[]]).optional(),
+  deliveryCountry: z.enum(Object.values(Country) as [string, ...string[]]).optional(),
+  distanceKm: z.number().optional(),
+  pickupDate: z.coerce.date().optional(),
+  deliveryDeadline: z.coerce.date().optional(),
+  specialHandling: z.string().optional(),
+  insuranceRequired: z.boolean().optional(),
+  notes: z.string().optional(),
+  truckType: z.enum(Object.values(TruckType) as [string, ...string[]]).optional(),
+  truckRequirements: z.array(z.string()).optional(),
+  requiresHazmat: z.boolean().optional(),
+  requiresTrec: z.boolean().optional(),
+  requiresPlacards: z.boolean().optional(),
+  permits: z.array(z.string()).optional(),
+  rateAmount: z.union([z.string(), z.number()]).optional(),
+  rateBasis: z.enum(Object.values(RateBasis) as [string, ...string[]]).optional(),
+  rateCurrency: z.string().optional(),
+  paymentTerms: z.string().optional(),
+  dieselOnAccount: z.boolean().optional(),
+  totalQuantity: z.number().optional(),
+  quantityUnit: z.string().optional()
+});
+export type UpdateJobData = z.infer<typeof updateJobSchema>;
+
+export const submitBidSchema = z.object({
+  rateAmount: z.union([z.string(), z.number()]).optional(),
+  rateBasis: z.enum(Object.values(RateBasis) as [string, ...string[]]).default(RateBasis.PER_TON),
+  capacityOffered: z.number().min(1).optional(),
+  weeklyCapacity: z.number().min(1).optional(),
+  message: z.string().optional()
+});
+export type SubmitBidData = z.infer<typeof submitBidSchema>;
+
+export const bidDecisionSchema = z.object({
+  status: z.enum(['accepted', 'rejected', 'withdrawn'])
+});
+export type BidDecisionData = z.infer<typeof bidDecisionSchema>;
 
 // Login schemas
 export const loginSchema = z.object({

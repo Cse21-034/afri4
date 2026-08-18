@@ -6,17 +6,25 @@ import type {
   InsertNotification,
   InsertRating,
   InsertDispute,
+  InsertJobStop,
+  InsertJobBid,
+  InsertCarrierCapabilities,
+  InsertAdvisory,
   User,
   Job,
   Chat,
   Notification,
   Rating,
-  Dispute
+  Dispute,
+  JobStop,
+  JobBid,
+  CarrierCapabilities,
+  Advisory
 } from './shared/schema.js';
-import { users, jobs, chats, notifications, ratings, disputes } from './shared/schema.js';
+import { users, jobs, chats, notifications, ratings, disputes, jobStops, jobBids, carrierCapabilities, advisories } from './shared/schema.js';
 import bcrypt from 'bcryptjs';
 import { db } from './db.js';
-import { eq, and, or, desc, gt, sql } from 'drizzle-orm';
+import { eq, and, or, desc, gt, sql, inArray } from 'drizzle-orm';
 
 // Fields safe to return to admin UIs -- excludes password hash, tokens, 2FA secret/backup codes.
 const safeUserColumns = {
@@ -90,16 +98,39 @@ interface IStorage {
     industry?: string;
     pickupCountry?: string;
     deliveryCountry?: string;
+    truckType?: string;
+    jobMode?: string;
     limit?: number;
     offset?: number;
-  }): Promise<Job[]>;
+  }): Promise<{ jobs: Job[]; total: number }>;
   getUserJobs(userId: number, role: 'shipper' | 'carrier'): Promise<Job[]>;
   getJobsByShipper(shipperId: number): Promise<Job[]>;
   getJobsByCarrier(carrierId: number): Promise<Job[]>;
   updateJob(id: number, data: Partial<Omit<Job, 'id' | 'createdAt'>>): Promise<void>;
+  editJob(id: number, shipperId: number, data: Record<string, any>): Promise<Job | null>;
   takeJob(jobId: number, carrierId: number): Promise<Job | null>;
+  releaseJob(jobId: number, carrierId: number): Promise<Job | null>;
   completeJob(jobId: number): Promise<Job | null>;
-  
+
+  // Job stops (multi-stop routes)
+  createJobStops(jobId: number, stops: Array<Omit<InsertJobStop, 'jobId' | 'createdAt'>>): Promise<JobStop[]>;
+  getJobStopsByJob(jobId: number): Promise<JobStop[]>;
+
+  // Job bids (tender mode)
+  createBid(data: Omit<InsertJobBid, 'createdAt' | 'updatedAt' | 'status'>): Promise<JobBid>;
+  getBidsByJob(jobId: number): Promise<JobBid[]>;
+  getBidById(id: number): Promise<JobBid | null>;
+  getBidByJobAndCarrier(jobId: number, carrierId: number): Promise<JobBid | null>;
+  updateBidStatus(id: number, status: string): Promise<JobBid | null>;
+
+  // Carrier capabilities
+  getCarrierCapabilities(userId: number): Promise<CarrierCapabilities | null>;
+  upsertCarrierCapabilities(userId: number, data: Partial<Omit<InsertCarrierCapabilities, 'userId' | 'updatedAt'>>): Promise<CarrierCapabilities>;
+
+  // Advisories
+  createAdvisory(data: Omit<InsertAdvisory, 'createdAt'>): Promise<Advisory>;
+  getAdvisories(filters: { country?: string; limit?: number }): Promise<Advisory[]>;
+
   // Chats
   createChat(data: Omit<InsertChat, 'createdAt' | 'updatedAt'>): Promise<Chat>;
   getChatById(id: number): Promise<Chat | null>;
@@ -478,33 +509,34 @@ class PostgreSQLStorage implements IStorage {
     industry?: string;
     pickupCountry?: string;
     deliveryCountry?: string;
+    truckType?: string;
+    jobMode?: string;
     limit?: number;
     offset?: number;
-  }): Promise<Job[]> {
-    let query = db.select().from(jobs);
-    
+  }): Promise<{ jobs: Job[]; total: number }> {
     const conditions = [];
     if (filters.status) conditions.push(eq(jobs.status, filters.status as any));
     if (filters.cargoType) conditions.push(eq(jobs.cargoType, filters.cargoType as any));
     if (filters.industry) conditions.push(eq(jobs.industry, filters.industry as any));
     if (filters.pickupCountry) conditions.push(eq(jobs.pickupCountry, filters.pickupCountry as any));
     if (filters.deliveryCountry) conditions.push(eq(jobs.deliveryCountry, filters.deliveryCountry as any));
-    
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
-    }
-    
+    if (filters.truckType) conditions.push(eq(jobs.truckType, filters.truckType as any));
+    if (filters.jobMode) conditions.push(eq(jobs.jobMode, filters.jobMode as any));
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    let query = db.select().from(jobs);
+    if (whereClause) query = query.where(whereClause) as any;
     query = query.orderBy(desc(jobs.createdAt)) as any;
-    
-    if (filters.limit) {
-      query = query.limit(filters.limit) as any;
-    }
-    
-    if (filters.offset) {
-      query = query.offset(filters.offset) as any;
-    }
-    
-    return query;
+    if (filters.limit) query = query.limit(filters.limit) as any;
+    if (filters.offset) query = query.offset(filters.offset) as any;
+
+    let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(jobs);
+    if (whereClause) countQuery = countQuery.where(whereClause) as any;
+
+    const [jobRows, [{ count }]] = await Promise.all([query, countQuery]);
+
+    return { jobs: jobRows, total: count };
   }
 
   async getUserJobs(userId: number, role: 'shipper' | 'carrier'): Promise<Job[]> {
@@ -529,6 +561,22 @@ class PostgreSQLStorage implements IStorage {
       .where(eq(jobs.id, id));
   }
 
+  // A shipper editing their own posting. Conditioned on shipperId + status='available' in the
+  // same statement (same discipline as takeJob) so a job that's already been taken can't be
+  // edited out from under the carrier who took it.
+  async editJob(id: number, shipperId: number, data: Record<string, any>): Promise<Job | null> {
+    const [updatedJob] = await db
+      .update(jobs)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      } as any)
+      .where(and(eq(jobs.id, id), eq(jobs.shipperId, shipperId), eq(jobs.status, 'available')))
+      .returning();
+
+    return updatedJob || null;
+  }
+
   async getAllJobsAdmin(filters: { status?: string; search?: string; limit: number; offset: number }) {
     const conditions = [];
     if (filters.status) conditions.push(eq(jobs.status, filters.status as any));
@@ -541,11 +589,16 @@ class PostgreSQLStorage implements IStorage {
       ));
     }
 
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
     let query = db.select().from(jobs);
-    if (conditions.length > 0) query = query.where(and(...conditions)) as any;
+    if (whereClause) query = query.where(whereClause) as any;
     query = query.orderBy(desc(jobs.createdAt)).limit(filters.limit).offset(filters.offset) as any;
 
-    const jobRows = await query;
+    let countQuery = db.select({ count: sql<number>`count(*)::int` }).from(jobs);
+    if (whereClause) countQuery = countQuery.where(whereClause) as any;
+
+    const [jobRows, [{ count }]] = await Promise.all([query, countQuery]);
 
     // Resolve shipper/carrier company names in one lightweight lookup rather than N+1 queries.
     const userIds = Array.from(new Set(jobRows.flatMap((j: any) => [j.shipperId, j.carrierId].filter(Boolean))));
@@ -557,14 +610,20 @@ class PostgreSQLStorage implements IStorage {
       rows.forEach((r) => nameMap.set(r.id, r.companyName || `User #${r.id}`));
     }
 
-    return jobRows.map((j: any) => ({
-      ...j,
-      shipperName: nameMap.get(j.shipperId) || null,
-      carrierName: j.carrierId ? nameMap.get(j.carrierId) || null : null,
-    }));
+    return {
+      jobs: jobRows.map((j: any) => ({
+        ...j,
+        shipperName: nameMap.get(j.shipperId) || null,
+        carrierName: j.carrierId ? nameMap.get(j.carrierId) || null : null,
+      })),
+      total: count,
+    };
   }
 
   async takeJob(jobId: number, carrierId: number): Promise<Job | null> {
+    // The status check has to happen in the same UPDATE, not as a preceding SELECT --
+    // otherwise two carriers who both read status='available' can both then write the
+    // update, and the second one silently overwrites the first's carrierId.
     const [updatedJob] = await db
       .update(jobs)
       .set({
@@ -573,9 +632,26 @@ class PostgreSQLStorage implements IStorage {
         takenAt: new Date(),
         updatedAt: new Date(),
       } as any)
-      .where(eq(jobs.id, jobId))
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, 'available')))
       .returning();
-    
+
+    return updatedJob || null;
+  }
+
+  // The reverse of takeJob -- a carrier backing out returns the job to 'available'.
+  // Conditioned on carrierId matching so a carrier can't release someone else's job.
+  async releaseJob(jobId: number, carrierId: number): Promise<Job | null> {
+    const [updatedJob] = await db
+      .update(jobs)
+      .set({
+        carrierId: null,
+        status: 'available',
+        takenAt: null,
+        updatedAt: new Date(),
+      } as any)
+      .where(and(eq(jobs.id, jobId), eq(jobs.carrierId, carrierId), eq(jobs.status, 'taken')))
+      .returning();
+
     return updatedJob || null;
   }
 
@@ -589,8 +665,116 @@ class PostgreSQLStorage implements IStorage {
       } as any)
       .where(eq(jobs.id, jobId))
       .returning();
-    
+
     return updatedJob || null;
+  }
+
+  // ==================== JOB STOPS ====================
+
+  async createJobStops(jobId: number, stops: Array<Omit<InsertJobStop, 'jobId' | 'createdAt'>>): Promise<JobStop[]> {
+    if (stops.length === 0) return [];
+    return db
+      .insert(jobStops)
+      .values(stops.map((s) => ({ ...s, jobId })))
+      .returning();
+  }
+
+  async getJobStopsByJob(jobId: number): Promise<JobStop[]> {
+    return db
+      .select()
+      .from(jobStops)
+      .where(eq(jobStops.jobId, jobId))
+      .orderBy(jobStops.sequence);
+  }
+
+  // ==================== JOB BIDS (tender mode) ====================
+
+  async createBid(data: Omit<InsertJobBid, 'createdAt' | 'updatedAt' | 'status'>): Promise<JobBid> {
+    const [bid] = await db
+      .insert(jobBids)
+      .values(data as any)
+      .returning();
+
+    return bid;
+  }
+
+  async getBidsByJob(jobId: number): Promise<JobBid[]> {
+    return db
+      .select()
+      .from(jobBids)
+      .where(eq(jobBids.jobId, jobId))
+      .orderBy(desc(jobBids.createdAt));
+  }
+
+  async getBidById(id: number): Promise<JobBid | null> {
+    const [bid] = await db.select().from(jobBids).where(eq(jobBids.id, id));
+    return bid || null;
+  }
+
+  async getBidByJobAndCarrier(jobId: number, carrierId: number): Promise<JobBid | null> {
+    const [bid] = await db
+      .select()
+      .from(jobBids)
+      .where(and(eq(jobBids.jobId, jobId), eq(jobBids.carrierId, carrierId)));
+
+    return bid || null;
+  }
+
+  async updateBidStatus(id: number, status: string): Promise<JobBid | null> {
+    const [bid] = await db
+      .update(jobBids)
+      .set({ status, updatedAt: new Date() } as any)
+      .where(eq(jobBids.id, id))
+      .returning();
+
+    return bid || null;
+  }
+
+  // ==================== CARRIER CAPABILITIES ====================
+
+  async getCarrierCapabilities(userId: number): Promise<CarrierCapabilities | null> {
+    const [row] = await db
+      .select()
+      .from(carrierCapabilities)
+      .where(eq(carrierCapabilities.userId, userId));
+
+    return row || null;
+  }
+
+  async upsertCarrierCapabilities(userId: number, data: Partial<Omit<InsertCarrierCapabilities, 'userId' | 'updatedAt'>>): Promise<CarrierCapabilities> {
+    const [row] = await db
+      .insert(carrierCapabilities)
+      .values({ ...data, userId, updatedAt: new Date() } as any)
+      .onConflictDoUpdate({
+        target: carrierCapabilities.userId,
+        set: { ...data, updatedAt: new Date() } as any,
+      })
+      .returning();
+
+    return row;
+  }
+
+  // ==================== ADVISORIES ====================
+
+  async createAdvisory(data: Omit<InsertAdvisory, 'createdAt'>): Promise<Advisory> {
+    const [advisory] = await db
+      .insert(advisories)
+      .values(data as any)
+      .returning();
+
+    return advisory;
+  }
+
+  async getAdvisories(filters: { country?: string; limit?: number }): Promise<Advisory[]> {
+    let query = db.select().from(advisories);
+    if (filters.country) {
+      // Country-specific advisories plus ones posted with no country (i.e. general/all-corridor notices)
+      query = query.where(or(eq(advisories.country, filters.country as any), sql`${advisories.country} IS NULL`)) as any;
+    }
+    query = query.orderBy(desc(advisories.createdAt)) as any;
+    if (filters.limit) query = query.limit(filters.limit) as any;
+
+    return query;
   }
 
   // ==================== CHAT METHODS ====================

@@ -20,9 +20,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import Navbar from "@/components/ui/navbar";
 import { JobListItem } from "@/components/job-list-item";
+import { AdvisoriesCard } from "@/components/advisories-card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
 
-import { Search, Truck, User as UserIcon, SlidersHorizontal } from "lucide-react";
+import { Search, Truck, User as UserIcon, SlidersHorizontal, ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
 
 interface Job {
   id: number;
@@ -82,6 +84,21 @@ const COUNTRY_OPTIONS = [
   { value: "ZWE", label: "Zimbabwe" },
 ];
 
+const TRUCK_TYPE_OPTIONS = [
+  { value: "tri_axle", label: "Tri-Axle" },
+  { value: "superlink", label: "Superlink" },
+  { value: "link", label: "Link" },
+  { value: "tautliner", label: "Tautliner" },
+  { value: "flat_deck", label: "Flat Deck" },
+  { value: "pantech", label: "Pantech" },
+  { value: "tanker", label: "Tanker" },
+  { value: "tipper", label: "Tipper" },
+  { value: "lowbed", label: "Lowbed" },
+  { value: "reefer", label: "Reefer" },
+  { value: "side_tipper", label: "Side Tipper" },
+  { value: "other", label: "Other" },
+];
+
 function formatCargoLabel(value: string) {
   return CARGO_TYPE_OPTIONS.find((c) => c.value === value)?.label || value;
 }
@@ -99,15 +116,72 @@ export default function TruckingDashboard() {
   const [cargoTypeFilter, setCargoTypeFilter] = useState("all");
   const [pickupCountryFilter, setPickupCountryFilter] = useState("all");
   const [deliveryCountryFilter, setDeliveryCountryFilter] = useState("all");
+  const [truckTypeFilter, setTruckTypeFilter] = useState("all");
+  const [jobModeFilter, setJobModeFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
-  // Fetch available jobs (server-side filtered by cargo type / country)
+  const [capTruckTypes, setCapTruckTypes] = useState<string[]>([]);
+  const [capCountries, setCapCountries] = useState<string[]>([]);
+  const [capCrossBorder, setCapCrossBorder] = useState(false);
+  const [capHazmat, setCapHazmat] = useState(false);
+  const [capFeatures, setCapFeatures] = useState("");
+  const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false);
+
+  const { data: capabilitiesData } = useQuery({
+    queryKey: ["/api/carrier/capabilities"],
+    queryFn: async () => (await apiRequest("GET", "/api/carrier/capabilities")).json(),
+  });
+
+  // Seed the editable form state from the server once, the first time it loads --
+  // subsequent refetches (e.g. after saving) shouldn't stomp on what the user is mid-editing.
+  useEffect(() => {
+    if (capabilitiesLoaded) return;
+    const c = capabilitiesData?.capabilities;
+    if (c) {
+      setCapTruckTypes(c.truckTypes || []);
+      setCapCountries(c.countries || []);
+      setCapCrossBorder(!!c.crossBorder);
+      setCapHazmat(!!c.hazmatCertified);
+      setCapFeatures((c.features || []).join(", "));
+      setCapabilitiesLoaded(true);
+    } else if (capabilitiesData) {
+      setCapabilitiesLoaded(true);
+    }
+  }, [capabilitiesData, capabilitiesLoaded]);
+
+  const saveCapabilitiesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PUT", "/api/carrier/capabilities", {
+        truckTypes: capTruckTypes,
+        countries: capCountries,
+        crossBorder: capCrossBorder,
+        hazmatCertified: capHazmat,
+        features: capFeatures.split(",").map((f) => f.trim()).filter(Boolean),
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/carrier/capabilities"] });
+      toast({ title: "Capabilities saved" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Fetch available jobs (server-side filtered by cargo type / country / truck type / mode)
   const { data: jobsData, isLoading: jobsLoading } = useQuery({
-    queryKey: ["/api/jobs", cargoTypeFilter, pickupCountryFilter, deliveryCountryFilter],
+    queryKey: ["/api/jobs", cargoTypeFilter, pickupCountryFilter, deliveryCountryFilter, truckTypeFilter, jobModeFilter, page],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (cargoTypeFilter !== "all") params.append("cargoType", cargoTypeFilter);
       if (pickupCountryFilter !== "all") params.append("pickupCountry", pickupCountryFilter);
       if (deliveryCountryFilter !== "all") params.append("deliveryCountry", deliveryCountryFilter);
+      if (truckTypeFilter !== "all") params.append("truckType", truckTypeFilter);
+      if (jobModeFilter !== "all") params.append("jobMode", jobModeFilter);
+      params.append("page", String(page));
+      params.append("limit", String(PAGE_SIZE));
       const response = await apiRequest("GET", `/api/jobs?${params.toString()}`);
       return response.json();
     },
@@ -131,6 +205,21 @@ export default function TruckingDashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs/my"] });
       toast({ title: "Success", description: "Job taken successfully!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const releaseJobMutation = useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await apiRequest("PATCH", `/api/jobs/${jobId}/release`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs/my"] });
+      toast({ title: "Job released", description: "It's back in the available pool for another carrier." });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -161,12 +250,18 @@ export default function TruckingDashboard() {
     takeJobMutation.mutate(jobId);
   };
 
+  const handleReleaseJob = (jobId: number) => {
+    releaseJobMutation.mutate(jobId);
+  };
+
   if (!user || user.role !== "trucking_company") {
     return <div className="min-h-screen flex items-center justify-center">Unauthorized</div>;
   }
 
   const availableJobs: Job[] = jobsData?.jobs || [];
   const myJobs: Job[] = myJobsData?.jobs || [];
+  const totalJobs: number = jobsData?.total ?? availableJobs.length;
+  const hasMore: boolean = jobsData?.hasMore ?? false;
 
   const displayedJobs = availableJobs
     .filter((job) => {
@@ -191,13 +286,13 @@ export default function TruckingDashboard() {
       ? "bg-accent"
       : "bg-destructive";
 
-  const filtersActive = cargoTypeFilter !== "all" || pickupCountryFilter !== "all" || deliveryCountryFilter !== "all";
+  const filtersActive = cargoTypeFilter !== "all" || pickupCountryFilter !== "all" || deliveryCountryFilter !== "all" || truckTypeFilter !== "all" || jobModeFilter !== "all";
 
   const filterFields = (
     <>
       <div>
         <h3 className="font-semibold text-sm mb-2 text-primary">Cargo Type</h3>
-        <Select value={cargoTypeFilter} onValueChange={setCargoTypeFilter}>
+        <Select value={cargoTypeFilter} onValueChange={(v) => { setCargoTypeFilter(v); setPage(1); }}>
           <SelectTrigger data-testid="filter-cargo-type">
             <SelectValue />
           </SelectTrigger>
@@ -211,8 +306,37 @@ export default function TruckingDashboard() {
       </div>
 
       <div>
+        <h3 className="font-semibold text-sm mb-2 text-primary">Truck Type</h3>
+        <Select value={truckTypeFilter} onValueChange={(v) => { setTruckTypeFilter(v); setPage(1); }}>
+          <SelectTrigger data-testid="filter-truck-type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any truck type</SelectItem>
+            {TRUCK_TYPE_OPTIONS.map((c) => (
+              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <h3 className="font-semibold text-sm mb-2 text-primary">Job Type</h3>
+        <Select value={jobModeFilter} onValueChange={(v) => { setJobModeFilter(v); setPage(1); }}>
+          <SelectTrigger data-testid="filter-job-mode">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Fixed loads & tenders</SelectItem>
+            <SelectItem value="fixed">Fixed loads only</SelectItem>
+            <SelectItem value="tender">Tenders only</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
         <h3 className="font-semibold text-sm mb-2 text-primary">Pickup Country</h3>
-        <Select value={pickupCountryFilter} onValueChange={setPickupCountryFilter}>
+        <Select value={pickupCountryFilter} onValueChange={(v) => { setPickupCountryFilter(v); setPage(1); }}>
           <SelectTrigger data-testid="filter-pickup-country">
             <SelectValue />
           </SelectTrigger>
@@ -227,7 +351,7 @@ export default function TruckingDashboard() {
 
       <div>
         <h3 className="font-semibold text-sm mb-2 text-primary">Delivery Country</h3>
-        <Select value={deliveryCountryFilter} onValueChange={setDeliveryCountryFilter}>
+        <Select value={deliveryCountryFilter} onValueChange={(v) => { setDeliveryCountryFilter(v); setPage(1); }}>
           <SelectTrigger data-testid="filter-delivery-country">
             <SelectValue />
           </SelectTrigger>
@@ -249,6 +373,9 @@ export default function TruckingDashboard() {
             setCargoTypeFilter("all");
             setPickupCountryFilter("all");
             setDeliveryCountryFilter("all");
+            setTruckTypeFilter("all");
+            setJobModeFilter("all");
+            setPage(1);
           }}
           data-testid="clear-filters"
         >
@@ -269,6 +396,9 @@ export default function TruckingDashboard() {
             </TabsTrigger>
             <TabsTrigger value="my-jobs" className="flex items-center gap-2" data-testid="tab-my-jobs">
               <Truck className="h-4 w-4" /> My Jobs
+            </TabsTrigger>
+            <TabsTrigger value="capabilities" className="flex items-center gap-2" data-testid="tab-capabilities">
+              <Settings2 className="h-4 w-4" /> Capabilities
             </TabsTrigger>
           </TabsList>
 
@@ -322,7 +452,7 @@ export default function TruckingDashboard() {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h1 className="text-2xl font-bold text-foreground">Search Job</h1>
-                  <Badge variant="secondary" data-testid="jobs-found-count">{displayedJobs.length} jobs found</Badge>
+                  <Badge variant="secondary" data-testid="jobs-found-count">{totalJobs} jobs found</Badge>
                 </div>
 
                 <div className="space-y-3 mb-4">
@@ -385,14 +515,41 @@ export default function TruckingDashboard() {
                     </Card>
                   )}
                 </div>
+
+                {!jobsLoading && (totalJobs > PAGE_SIZE) && (
+                  <div className="flex items-center justify-between mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      data-testid="prev-page-button"
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">Page {page}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => p + 1)}
+                      disabled={!hasMore}
+                      data-testid="next-page-button"
+                    >
+                      Next <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Right: Job Filter (desktop only -- mobile uses the Sheet drawer) */}
-              <Card className="hidden lg:block" data-testid="job-filter-card">
-                <CardContent className="p-5 space-y-5">
-                  {filterFields}
-                </CardContent>
-              </Card>
+              <div className="hidden lg:flex lg:flex-col gap-6">
+                <Card data-testid="job-filter-card">
+                  <CardContent className="p-5 space-y-5">
+                    {filterFields}
+                  </CardContent>
+                </Card>
+                <AdvisoriesCard />
+              </div>
             </div>
           </TabsContent>
 
@@ -405,6 +562,8 @@ export default function TruckingDashboard() {
                     key={job.id}
                     job={job}
                     userRole="trucking_company"
+                    onReleaseJob={handleReleaseJob}
+                    isLoading={releaseJobMutation.isPending}
                     showManageActions={false}
                   />
                 ))
@@ -422,6 +581,96 @@ export default function TruckingDashboard() {
                   </CardContent>
                 </Card>
               )}
+            </div>
+          </TabsContent>
+
+          {/* CAPABILITIES TAB */}
+          <TabsContent value="capabilities" data-testid="capabilities-content">
+            <div className="max-w-2xl">
+              <Card>
+                <CardContent className="p-6 space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">Fleet & Reach</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Declare what your fleet can actually run -- this lets shippers and the job filters match you to the right loads instead of a phone call.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-sm mb-2">Truck Types You Operate</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {TRUCK_TYPE_OPTIONS.map((t) => (
+                        <div key={t.value} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`cap-truck-${t.value}`}
+                            checked={capTruckTypes.includes(t.value)}
+                            onCheckedChange={(checked) => setCapTruckTypes((prev) => checked ? [...prev, t.value] : prev.filter((v) => v !== t.value))}
+                            data-testid={`checkbox-cap-truck-${t.value}`}
+                          />
+                          <Label htmlFor={`cap-truck-${t.value}`} className="text-sm font-normal">{t.label}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-sm mb-2">Countries You Operate In</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+                      {COUNTRY_OPTIONS.map((c) => (
+                        <div key={c.value} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`cap-country-${c.value}`}
+                            checked={capCountries.includes(c.value)}
+                            onCheckedChange={(checked) => setCapCountries((prev) => checked ? [...prev, c.value] : prev.filter((v) => v !== c.value))}
+                            data-testid={`checkbox-cap-country-${c.value}`}
+                          />
+                          <Label htmlFor={`cap-country-${c.value}`} className="text-sm font-normal">{c.label}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-6">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="cap-cross-border"
+                        checked={capCrossBorder}
+                        onCheckedChange={(checked) => setCapCrossBorder(!!checked)}
+                        data-testid="checkbox-cap-cross-border"
+                      />
+                      <Label htmlFor="cap-cross-border" className="text-sm font-normal">Cross-border capable</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="cap-hazmat"
+                        checked={capHazmat}
+                        onCheckedChange={(checked) => setCapHazmat(!!checked)}
+                        data-testid="checkbox-cap-hazmat"
+                      />
+                      <Label htmlFor="cap-hazmat" className="text-sm font-normal">Hazmat certified</Label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="cap-features" className="text-sm font-medium">Other Features</Label>
+                    <Input
+                      id="cap-features"
+                      value={capFeatures}
+                      onChange={(e) => setCapFeatures(e.target.value)}
+                      placeholder="Comma-separated, e.g. pole pockets, tautliner curtains"
+                      data-testid="input-cap-features"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={() => saveCapabilitiesMutation.mutate()}
+                    disabled={saveCapabilitiesMutation.isPending}
+                    data-testid="save-capabilities-button"
+                  >
+                    {saveCapabilitiesMutation.isPending ? "Saving..." : "Save Capabilities"}
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>
