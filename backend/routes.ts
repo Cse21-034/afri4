@@ -11,6 +11,7 @@ import { emailService } from "./services/services/email.js";
 import { stripeService } from "./services/services/stripe.js";
 import { authenticateToken, requireRole, requireSubscription, AuthRequest } from "./middleware/middleware/auth.js";
 import { uploadBufferToCloudinary, isCloudinaryConfigured } from "./services/services/cloudinary.js";
+import { extractJobsFromText, isClaudeConfigured } from "./services/services/claude.js";
 import {
   loginSchema,
   registerTruckingSchema,
@@ -1097,6 +1098,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Advisory creation error:', error);
       res.status(400).json({ message: error.message || 'Failed to post advisory' });
+    }
+  });
+
+  // Parses a pasted broker/WhatsApp message into draft job records for the admin to review
+  // and submit individually via the existing on-behalf POST /api/jobs -- this endpoint never
+  // inserts a job itself.
+  app.post('/api/admin/jobs/parse', authenticateToken, requireRole([UserRole.SUPER_ADMIN, UserRole.CUSTOMER_SUPPORT]), async (req: AuthRequest, res) => {
+    try {
+      if (!isClaudeConfigured()) {
+        return res.status(503).json({ message: 'Job-post extraction is not configured. Set ANTHROPIC_API_KEY.' });
+      }
+
+      const { rawMessage } = req.body;
+      if (!rawMessage || typeof rawMessage !== 'string' || !rawMessage.trim()) {
+        return res.status(400).json({ message: 'rawMessage is required' });
+      }
+
+      const shippingUsers = await storage.getAllUsers({ role: UserRole.SHIPPING_ENTITY });
+      const shippingEntities = shippingUsers.map((u) => ({
+        id: u.id,
+        name: u.companyName || `User #${u.id}`,
+        aliases: [] as string[],
+        phones: u.phoneNumber ? [u.phoneNumber] : [],
+      }));
+      const validShipperIds = new Set(shippingEntities.map((s) => s.id));
+
+      const result = await extractJobsFromText(rawMessage, shippingEntities);
+
+      // Defense in depth: structured outputs already constrains every enum field to a valid
+      // value, but shipperId is a plain number the schema can't close over the valid set for
+      // (it's per-request, not part of the schema) -- cross-check it against who we actually sent.
+      for (const item of result.jobs) {
+        if (item.job.shipperId !== null && !validShipperIds.has(item.job.shipperId)) {
+          item.meta.warnings.push(`Model returned an unrecognized shipperId (${item.job.shipperId}); cleared it.`);
+          item.job.shipperId = null;
+        }
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('Job extraction error:', error);
+      res.status(500).json({ message: error.message || 'Failed to extract jobs from text' });
     }
   });
 

@@ -18,6 +18,7 @@ import Navbar from "@/components/ui/navbar";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { JobExtractionReview } from "@/components/job-extraction-review";
 import {
   Users, Package, Clock as ClockIcon, AlertTriangle, TrendingUp, FileText, MessageSquare,
   Settings, CheckCircle, XCircle, Clock, Eye, UserPlus, Plus
@@ -1206,7 +1207,9 @@ export default function AdminDashboard() {
           </TabsContent>
 
           {/* POST JOB */}
-          <TabsContent value="post-job" className="mt-6" data-testid="post-job-content">
+          <TabsContent value="post-job" className="mt-6 space-y-6" data-testid="post-job-content">
+            <JobExtractionReview shippingEntities={shippingEntitiesData?.users || []} />
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
