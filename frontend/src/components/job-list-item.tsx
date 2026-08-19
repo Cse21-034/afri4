@@ -27,7 +27,7 @@ interface Job {
   pickupDate?: string | null;
   deliveryDeadline?: string | null;
   specialHandling?: string;
-  insuranceRequired?: boolean;
+  insuranceRequired: boolean;
   notes?: string;
   completedAt?: string | null;
   quantity?: number | null;

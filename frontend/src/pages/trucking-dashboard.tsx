@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import Navbar from "@/components/ui/navbar";
@@ -41,7 +42,7 @@ interface Job {
   pickupDate?: string | null;
   deliveryDeadline?: string | null;
   specialHandling?: string;
-  insuranceRequired?: boolean;
+  insuranceRequired: boolean;
   notes?: string;
   completedAt?: string | null;
 }
@@ -434,7 +435,7 @@ export default function TruckingDashboard() {
                     </p>
                     {user.cargoTypes && user.cargoTypes.length > 0 ? (
                       <ul className="space-y-1.5 text-sm">
-                        {user.cargoTypes.map((type) => (
+                        {user.cargoTypes.map((type: string) => (
                           <li key={type} className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
                             {formatCargoLabel(type)}

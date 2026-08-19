@@ -382,7 +382,7 @@ export default function Register() {
                       <Checkbox
                         id="terms-trucking"
                         checked={agreedToTerms}
-                        onCheckedChange={setAgreedToTerms}
+                        onCheckedChange={(checked) => setAgreedToTerms(!!checked)}
                         data-testid="checkbox-terms"
                       />
                       <Label htmlFor="terms-trucking" className="text-sm leading-5">
@@ -543,7 +543,7 @@ export default function Register() {
                       <Checkbox
                         id="terms-shipping"
                         checked={agreedToTerms}
-                        onCheckedChange={setAgreedToTerms}
+                        onCheckedChange={(checked) => setAgreedToTerms(!!checked)}
                         data-testid="checkbox-terms-shipping"
                       />
                       <Label htmlFor="terms-shipping" className="text-sm leading-5">
