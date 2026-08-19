@@ -102,13 +102,18 @@ async function runMigrations() {
     // Create enums
     const enums = [
       { name: 'user_role', values: ['trucking_company', 'shipping_entity', 'super_admin', 'customer_support'] },
-      { name: 'cargo_type', values: ['general', 'refrigerated', 'hazardous', 'bulk', 'containers'] },
+      { name: 'cargo_type', values: ['general', 'refrigerated', 'hazardous', 'bulk', 'containers', 'livestock', 'agricultural', 'mining', 'construction', 'vehicles', 'electronics', 'textiles', 'pharmaceuticals', 'perishables', 'oversized', 'liquids'] },
       { name: 'industry', values: ['agriculture', 'manufacturing', 'retail', 'mining', 'logistics', 'construction'] },
-      { name: 'job_status', values: ['available', 'taken', 'completed'] },
-      { name: 'country', values: ['BWA', 'ZAF', 'NAM', 'ZWE', 'ZMB'] },
+      { name: 'job_status', values: ['available', 'taken', 'completed', 'cancelled'] },
+      { name: 'country', values: ['AGO', 'BWA', 'COM', 'COD', 'SWZ', 'LSO', 'MDG', 'MWI', 'MUS', 'MOZ', 'NAM', 'SYC', 'ZAF', 'TZA', 'ZMB', 'ZWE'] },
       { name: 'subscription_status', values: ['active', 'inactive', 'trial'] },
       { name: 'notification_type', values: ['job_match', 'job_taken', 'job_completed', 'payment_confirmed', 'subscription_expiring'] },
-      { name: 'dispute_status', values: ['open', 'in_review', 'resolved', 'closed'] }
+      { name: 'dispute_status', values: ['open', 'in_review', 'resolved', 'closed'] },
+      { name: 'rate_basis', values: ['flat', 'per_ton', 'per_km', 'per_load', 'quote'] },
+      { name: 'truck_type', values: ['tri_axle', 'superlink', 'link', 'tautliner', 'flat_deck', 'pantech', 'tanker', 'tipper', 'lowbed', 'reefer', 'side_tipper', 'other'] },
+      { name: 'job_mode', values: ['fixed', 'tender'] },
+      { name: 'bid_status', values: ['pending', 'accepted', 'rejected', 'withdrawn'] },
+      { name: 'stop_type', values: ['pickup', 'delivery'] },
     ];
 
     for (const enumDef of enums) {
@@ -119,6 +124,15 @@ async function runMigrations() {
           WHEN duplicate_object THEN null;
         END $$;
       `);
+    }
+
+    // The block above only fires on a brand-new type -- an enum created on an earlier deploy
+    // with fewer values never picks up the ones added since (this is IF NOT EXISTS, not a
+    // real migration). ADD VALUE IF NOT EXISTS is additive and safe to re-run every deploy.
+    for (const enumDef of enums) {
+      for (const value of enumDef.values) {
+        await pool.query(`ALTER TYPE ${enumDef.name} ADD VALUE IF NOT EXISTS '${value}';`);
+      }
     }
     console.log('[MIGRATION] ✓ Enums created/verified');
 
@@ -215,12 +229,23 @@ async function runMigrations() {
           ALTER TABLE users ADD COLUMN account_locked BOOLEAN NOT NULL DEFAULT false;
         END IF;
 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                       WHERE table_name='users' AND column_name='lock_expires') THEN
           ALTER TABLE users ADD COLUMN lock_expires TIMESTAMP;
         END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_name='users' AND column_name='stripe_subscription_status') THEN
+          ALTER TABLE users ADD COLUMN stripe_subscription_status VARCHAR(50);
+        END IF;
       END $$;
     `);
+
+    // Email is optional (phone-first registration) -- the original CREATE TABLE above set it
+    // NOT NULL, and CREATE TABLE IF NOT EXISTS never re-applies to an existing table, so this
+    // is the only thing that actually fixes it on a database that already has the users table.
+    await pool.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`);
+
     console.log('[MIGRATION] ✓ Enhanced authentication columns added/verified');
 
     // Create jobs table
@@ -314,6 +339,94 @@ async function runMigrations() {
     `);
     console.log('[MIGRATION] ✓ Disputes table created/verified');
 
+    // Cargo/location/schedule fields on a job are all optional -- not every job has a known
+    // weight/deadline/etc upfront. The original CREATE TABLE above set these NOT NULL; safe
+    // no-op if a column is already nullable.
+    const jobsNullableColumns = ['cargo_type', 'cargo_weight', 'cargo_volume', 'industry', 'pickup_address', 'delivery_address', 'pickup_country', 'delivery_country', 'pickup_date', 'delivery_deadline'];
+    for (const column of jobsNullableColumns) {
+      await pool.query(`ALTER TABLE jobs ALTER COLUMN ${column} DROP NOT NULL;`);
+    }
+
+    // Jobs-marketplace upgrade: rate/payment, equipment, compliance, tender, and admin-audit columns
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS posted_by_admin_id INTEGER REFERENCES users(id);`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 1;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS distance_km INTEGER;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS truck_type truck_type;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS truck_requirements TEXT[];`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requires_hazmat BOOLEAN NOT NULL DEFAULT false;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requires_trec BOOLEAN NOT NULL DEFAULT false;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requires_placards BOOLEAN NOT NULL DEFAULT false;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS permits TEXT[];`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS rate_amount NUMERIC;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS rate_basis rate_basis NOT NULL DEFAULT 'flat';`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS rate_currency VARCHAR(10);`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_terms TEXT;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS diesel_on_account BOOLEAN NOT NULL DEFAULT false;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_mode job_mode NOT NULL DEFAULT 'fixed';`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_quantity INTEGER;`);
+    await pool.query(`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS quantity_unit VARCHAR(20);`);
+    console.log('[MIGRATION] ✓ Jobs table columns extended (rate/equipment/tender/compliance)');
+
+    // Multi-stop routes for a job
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS job_stops (
+        id SERIAL PRIMARY KEY,
+        job_id INTEGER NOT NULL REFERENCES jobs(id),
+        sequence INTEGER NOT NULL,
+        stop_type stop_type NOT NULL,
+        address TEXT NOT NULL,
+        country country,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log('[MIGRATION] ✓ Job stops table created/verified');
+
+    // Carrier bids on tender-mode jobs
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS job_bids (
+        id SERIAL PRIMARY KEY,
+        job_id INTEGER NOT NULL REFERENCES jobs(id),
+        carrier_id INTEGER NOT NULL REFERENCES users(id),
+        rate_amount NUMERIC,
+        rate_basis rate_basis NOT NULL DEFAULT 'per_ton',
+        capacity_offered INTEGER,
+        weekly_capacity INTEGER,
+        message TEXT,
+        status bid_status NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (job_id, carrier_id)
+      );
+    `);
+    console.log('[MIGRATION] ✓ Job bids table created/verified');
+
+    // A carrier's declared fleet/reach
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS carrier_capabilities (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id),
+        truck_types truck_type[],
+        cross_border BOOLEAN NOT NULL DEFAULT false,
+        hazmat_certified BOOLEAN NOT NULL DEFAULT false,
+        countries country[],
+        features TEXT[],
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log('[MIGRATION] ✓ Carrier capabilities table created/verified');
+
+    // Broadcast notices (border delays, weighbridge updates, etc.)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS advisories (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        body TEXT NOT NULL,
+        country country,
+        posted_by_admin_id INTEGER NOT NULL REFERENCES users(id),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log('[MIGRATION] ✓ Advisories table created/verified');
+
     // Create indexes
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)',
@@ -326,7 +439,11 @@ async function runMigrations() {
       'CREATE INDEX IF NOT EXISTS idx_chats_job ON chats(job_id)',
       'CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status)',
-      'CREATE INDEX IF NOT EXISTS idx_disputes_admin ON disputes(admin_id)'
+      'CREATE INDEX IF NOT EXISTS idx_disputes_admin ON disputes(admin_id)',
+      'CREATE INDEX IF NOT EXISTS idx_job_stops_job ON job_stops(job_id)',
+      'CREATE INDEX IF NOT EXISTS idx_job_bids_job ON job_bids(job_id)',
+      'CREATE INDEX IF NOT EXISTS idx_job_bids_carrier ON job_bids(carrier_id)',
+      'CREATE INDEX IF NOT EXISTS idx_advisories_country ON advisories(country)'
     ];
 
     for (const indexQuery of indexes) {
