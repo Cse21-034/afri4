@@ -1198,6 +1198,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // If every phone-resolved job in this paste pointed to the same account, that's one
+      // sender posting several loads -- extend that shipper to any remaining job that got no
+      // phone number of its own at all, instead of leaving its shipperId (and Post button)
+      // stuck unset just because the model attributed the shared phone to a different load.
+      if (phoneToUserId.size === 1) {
+        const onlyShipperId = Array.from(phoneToUserId.values())[0];
+        for (const item of result.jobs) {
+          if (item.job.shipperId !== null) continue;
+          if (item.meta.shipperMatch.phoneNumber) continue; // had its own phone; don't override its own result
+          item.job.shipperId = onlyShipperId;
+          item.meta.warnings.push('No shipper info on this specific load -- assumed the same sender as the other load(s) in this paste. Verify before posting.');
+        }
+      }
+
       res.json(result);
     } catch (error: any) {
       console.error('Job extraction error:', error);

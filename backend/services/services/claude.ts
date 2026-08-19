@@ -367,10 +367,14 @@ Always fill meta.shipperMatch with your reasoning.
 
 shipperMatch.phoneNumber: the contact phone number for this load, exactly as it
 appears in the text (digits, spaces, dashes, "+", parentheses all fine — don't
-reformat it), if a phone number is present anywhere in the message. This is
-independent of whether it matched a SHIPPING_ENTITIES phone — extract it whenever
-one is written, even on a "none" match, since it's how a new account gets created
-for a shipper who isn't in the system yet. "" if no phone number appears at all.
+reformat it). This is independent of whether it matched a SHIPPING_ENTITIES
+phone — extract it whenever one is written, even on a "none" match, since it's
+how a new account gets created for a shipper who isn't in the system yet.
+If the message contains SEVERAL loads but only ONE phone number overall (a
+single WhatsApp/broker paste with one sender's contact, usually at the very
+end), that phone number belongs to every load in the paste, not just the one
+physically closest to it — repeat it on each job's shipperMatch.phoneNumber.
+Only leave it "" when no phone number appears anywhere in the message at all.
 
 ## Excluding non-loads
 Border/customs notices, weighbridge updates, greetings, follower counts, standalone
