@@ -1148,7 +1148,7 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                       <Label htmlFor="admin-country">Country</Label>
-                      <Select onValueChange={(v) => registerForm.setValue("country", v)} defaultValue="BWA">
+                      <Select onValueChange={(v) => registerForm.setValue("country", v)} value={registerForm.watch("country")}>
                         <SelectTrigger id="admin-country" data-testid="select-admin-country"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {COUNTRY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -1220,7 +1220,7 @@ export default function AdminDashboard() {
                 <form onSubmit={jobForm.handleSubmit((data) => postJobMutation.mutate(data))} className="space-y-6">
                   <div>
                     <Label htmlFor="job-shipper">Shipping Entity</Label>
-                    <Select onValueChange={(v) => jobForm.setValue("shipperId", v)}>
+                    <Select onValueChange={(v) => jobForm.setValue("shipperId", v)} value={jobForm.watch("shipperId") || undefined}>
                       <SelectTrigger id="job-shipper" data-testid="select-job-shipper">
                         <SelectValue placeholder="Select a shipping entity" />
                       </SelectTrigger>
@@ -1357,7 +1357,7 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="job-cargo-type">Cargo Type</Label>
-                      <Select onValueChange={(v) => jobForm.setValue("cargoType", v)}>
+                      <Select onValueChange={(v) => jobForm.setValue("cargoType", v)} value={jobForm.watch("cargoType") || undefined}>
                         <SelectTrigger id="job-cargo-type" data-testid="select-job-cargo-type"><SelectValue placeholder="Select cargo type" /></SelectTrigger>
                         <SelectContent>
                           {CARGO_TYPE_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -1369,7 +1369,7 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                       <Label htmlFor="job-industry">Industry</Label>
-                      <Select onValueChange={(v) => jobForm.setValue("industry", v)}>
+                      <Select onValueChange={(v) => jobForm.setValue("industry", v)} value={jobForm.watch("industry") || undefined}>
                         <SelectTrigger id="job-industry" data-testid="select-job-industry"><SelectValue placeholder="Select industry" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="agriculture">Agriculture</SelectItem>
@@ -1400,7 +1400,7 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                       <Label htmlFor="job-pickup-country">Pickup Country</Label>
-                      <Select onValueChange={(v) => jobForm.setValue("pickupCountry", v)} defaultValue="BWA">
+                      <Select onValueChange={(v) => jobForm.setValue("pickupCountry", v)} value={jobForm.watch("pickupCountry")}>
                         <SelectTrigger id="job-pickup-country" data-testid="select-job-pickup-country"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {COUNTRY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -1409,7 +1409,7 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                       <Label htmlFor="job-delivery-country">Delivery Country</Label>
-                      <Select onValueChange={(v) => jobForm.setValue("deliveryCountry", v)} defaultValue="BWA">
+                      <Select onValueChange={(v) => jobForm.setValue("deliveryCountry", v)} value={jobForm.watch("deliveryCountry")}>
                         <SelectTrigger id="job-delivery-country" data-testid="select-job-delivery-country"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {COUNTRY_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}

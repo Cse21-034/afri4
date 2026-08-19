@@ -552,7 +552,7 @@ export default function ShippingDashboard() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="cargoType">Cargo Type</Label>
-                          <Select onValueChange={(value) => form.setValue("cargoType", value)}>
+                          <Select onValueChange={(value) => form.setValue("cargoType", value)} value={form.watch("cargoType") || undefined}>
                             <SelectTrigger data-testid="select-cargo-type">
                               <SelectValue placeholder="Select cargo type" />
                             </SelectTrigger>
@@ -571,7 +571,7 @@ export default function ShippingDashboard() {
 
                         <div>
                           <Label htmlFor="industry">Industry</Label>
-                          <Select onValueChange={(value) => form.setValue("industry", value)}>
+                          <Select onValueChange={(value) => form.setValue("industry", value)} value={form.watch("industry") || undefined}>
                             <SelectTrigger data-testid="select-industry">
                               <SelectValue placeholder="Select industry" />
                             </SelectTrigger>
@@ -625,7 +625,7 @@ export default function ShippingDashboard() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <Label htmlFor="pickupCountry">Pickup Country</Label>
-                            <Select onValueChange={(value) => form.setValue("pickupCountry", value)} defaultValue="BWA">
+                            <Select onValueChange={(value) => form.setValue("pickupCountry", value)} value={form.watch("pickupCountry")}>
                               <SelectTrigger data-testid="select-pickup-country">
                                 <SelectValue />
                               </SelectTrigger>
@@ -641,7 +641,7 @@ export default function ShippingDashboard() {
 
                           <div>
                             <Label htmlFor="deliveryCountry">Delivery Country</Label>
-                            <Select onValueChange={(value) => form.setValue("deliveryCountry", value)} defaultValue="BWA">
+                            <Select onValueChange={(value) => form.setValue("deliveryCountry", value)} value={form.watch("deliveryCountry")}>
                               <SelectTrigger data-testid="select-delivery-country">
                                 <SelectValue />
                               </SelectTrigger>
