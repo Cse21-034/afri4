@@ -298,8 +298,8 @@ rateAmount / rateBasis / rateCurrency:
 - "R500 per ton" → rateAmount 500, rateBasis "per_ton", rateCurrency "ZAR".
 - "R8000" flat → rateAmount 8000, rateBasis "flat".
 - "R15000 ... 2 loads" → rateAmount 15000, rateBasis "per_load", quantity 2.
-- "please quote / enquire / rate?" or a tender → rateAmount 0, rateBasis
-  "quote".
+- "please quote / enquire / rate?" (price not stated, single load or a
+  tender) → rateAmount 0, rateBasis "quote".
 - Currency: "R"→ZAR, "USD/$"→USD, "K"(Kwacha)→ZMW/MWK only if unambiguous, else
   ZAR default when an "R" figure is present; "" if no figure at all.
 rateBasis enum: flat, per_ton, per_km, per_load, quote.
@@ -313,13 +313,19 @@ false.
 quantity: number of identical loads for a fixed job (default 1). "2 loads" → 2.
 
 jobMode + tender fields:
-Set jobMode "tender" when the message is a QUOTE/RATE REQUEST rather than a fixed
-load — signals include: "quote request", "rate & availability request", "please
-provide rates", asking "how much of the allocation you can complete", "available
-weekly capacity", "period required", large tonnage to be split across carriers,
-or soliciting capacity with no fixed rate. For tenders: rateBasis "quote",
-rateAmount 0, and set totalQuantity (e.g. 4000) + quantityUnit ("tons" or
-"loads"). Otherwise jobMode "fixed", totalQuantity 0, quantityUnit "".
+Set jobMode "tender" ONLY for a genuine capacity/allocation tender: the message
+states a bulk total quantity (tonnage/loads) that needs to be split or allocated
+across multiple transporters over a period, and is asking for rates/available
+capacity rather than confirming one load — signals: a stated total tonnage or
+load count PLUS "per month/week", "how much of the allocation you can
+complete", "available weekly capacity", "period required", "rate & availability
+request" against that bulk quantity. When jobMode is "tender", totalQuantity
+MUST be the real stated total (never 0) with quantityUnit ("tons" or "loads").
+
+A single load / single truck job with just an unstated price ("please quote",
+"how much?", "rate?", "enquire") is jobMode "fixed", NOT a tender — an
+unspecified price alone is never a tender signal. For these: rateBasis "quote",
+rateAmount 0, totalQuantity 0, quantityUnit "".
 
 Compliance (only when stated; else false / []):
 - requiresHazmat: true if hazardous cargo or "hazmat-compliant" is mentioned.

@@ -193,6 +193,16 @@ function JobCard({ item, index, shippingEntities, onPosted }: {
             <Label className="text-xs">Payment Terms</Label>
             <Input value={job.paymentTerms || ''} onChange={(e) => set('paymentTerms', e.target.value || null)} />
           </div>
+          <div>
+            <Label className="text-xs">Job Mode</Label>
+            <Select value={job.jobMode} onValueChange={(v) => set('jobMode', v)}>
+              <SelectTrigger data-testid={`extracted-job-mode-${index}`}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixed">Fixed (single load)</SelectItem>
+                <SelectItem value="tender">Tender (bidding)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center space-x-2 mt-5">
             <Checkbox checked={job.dieselOnAccount} onCheckedChange={(c) => set('dieselOnAccount', !!c)} />
             <Label className="text-xs font-normal">Diesel on account</Label>
@@ -200,9 +210,27 @@ function JobCard({ item, index, shippingEntities, onPosted }: {
         </div>
 
         {job.jobMode === 'tender' && (
-          <p className="text-xs text-purple-700 bg-purple-50 border border-purple-200 rounded p-2">
-            Tender: {job.totalQuantity ?? '?'} {job.quantityUnit || 'units'} to be covered across carrier bids.
-          </p>
+          <div className="grid grid-cols-2 gap-3 text-xs bg-purple-50 border border-purple-200 rounded p-2">
+            <div>
+              <Label className="text-xs">Total Quantity</Label>
+              <Input
+                type="number"
+                value={job.totalQuantity ?? ''}
+                onChange={(e) => set('totalQuantity', e.target.value ? Number(e.target.value) : null)}
+                placeholder="e.g. 4000"
+                data-testid={`extracted-job-total-quantity-${index}`}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Unit</Label>
+              <Input
+                value={job.quantityUnit || ''}
+                onChange={(e) => set('quantityUnit', e.target.value || null)}
+                placeholder="tons / loads"
+                data-testid={`extracted-job-quantity-unit-${index}`}
+              />
+            </div>
+          </div>
         )}
 
         <div>
