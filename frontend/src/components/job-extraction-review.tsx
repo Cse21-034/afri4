@@ -227,6 +227,7 @@ function JobCard({ item, index, shippingEntities, onPosted }: {
 
 export function JobExtractionReview({ shippingEntities }: { shippingEntities: Array<{ id: number; companyName: string }> }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [rawMessage, setRawMessage] = useState("");
   const [result, setResult] = useState<{ jobs: ExtractedItem[]; excluded: ExcludedItem[] } | null>(null);
 
@@ -234,6 +235,9 @@ export function JobExtractionReview({ shippingEntities }: { shippingEntities: Ar
     mutationFn: async () => (await apiRequest('POST', '/api/admin/jobs/parse', { rawMessage })).json(),
     onSuccess: (data) => {
       setResult(data);
+      // A job with no name/alias match may have been auto-attributed to a newly created
+      // account by phone number -- refresh the dropdown so it shows up already selected.
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users', 'shipping_entity'] });
       if (data.jobs.length === 0) {
         toast({ title: "No loads found", description: "Nothing extractable — check the excluded items below." });
       } else {

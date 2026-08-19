@@ -62,6 +62,13 @@ function generateBackupCodes(): string[] {
   );
 }
 
+// Keeps a leading "+" and digits only, so "060 456 2261" and "060-456-2261" compare equal.
+// Doesn't attempt full E.164/country-code reconciliation -- "0604562261" and "+27604562261"
+// still won't match each other, only exact-format duplicates within the same paste/broker.
+function normalizePhoneNumber(raw: string): string {
+  return raw.replace(/(?!^\+)[^\d]/g, '');
+}
+
 // Attaches job details and the other participant's public info to a chat,
 // for the chat inbox/detail UI. Never spreads the raw user record (has password hash etc.) -
 // only whitelisted public fields are included.
@@ -1133,6 +1140,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (item.job.shipperId !== null && !validShipperIds.has(item.job.shipperId)) {
           item.meta.warnings.push(`Model returned an unrecognized shipperId (${item.job.shipperId}); cleared it.`);
           item.job.shipperId = null;
+        }
+      }
+
+      // No name/alias match, but a phone number was extracted from the message -- most posts
+      // never name the shipping entity at all, so requiring a name match would leave almost
+      // every job unattributed. Reuse an existing account by phone if one exists (this is also
+      // what catches "the entity exists but wasn't matched by name"); otherwise provision a
+      // minimal shipping-entity account from just the phone number, same as a phone-only
+      // self-registration, so the job has a real home instead of sitting orphaned pending an
+      // admin's manual pick. Cache lookups/creations within this request so the same phone
+      // number appearing on multiple loads in one paste resolves to one account, not several.
+      const phoneToUserId = new Map<string, number>();
+      for (const item of result.jobs) {
+        if (item.job.shipperId !== null) continue;
+
+        const rawPhone = item.meta.shipperMatch.phoneNumber;
+        if (!rawPhone) continue;
+
+        const phone = normalizePhoneNumber(rawPhone);
+        if (phone.replace(/\D/g, '').length < 7) continue; // too short to plausibly be real
+
+        if (phoneToUserId.has(phone)) {
+          item.job.shipperId = phoneToUserId.get(phone)!;
+          continue;
+        }
+
+        const existing = await storage.getUserByPhoneNumber(phone);
+        if (existing) {
+          if (existing.role === UserRole.SHIPPING_ENTITY) {
+            item.job.shipperId = existing.id;
+            phoneToUserId.set(phone, existing.id);
+            item.meta.warnings.push(`Matched to existing shipping entity "${existing.companyName || phone}" by phone number.`);
+          } else {
+            item.meta.warnings.push(`Phone number ${phone} belongs to an existing account that isn't a shipping entity -- not auto-attributed.`);
+          }
+          continue;
+        }
+
+        try {
+          const newShipper = await storage.createUser({
+            role: UserRole.SHIPPING_ENTITY,
+            phoneNumber: phone,
+            companyName: `Shipper ${phone}`,
+            contactPersonName: phone,
+            physicalAddress: 'Not provided -- account auto-created from a pasted job post',
+            country: (item.job.pickupCountry as any) || 'BWA',
+            password: crypto.randomBytes(24).toString('hex'),
+            subscriptionStatus: 'active',
+          } as any);
+          item.job.shipperId = newShipper.id;
+          phoneToUserId.set(phone, newShipper.id);
+          item.meta.warnings.push(`No existing shipping entity matched -- created a new account "${newShipper.companyName}" from the phone number. Rename it and consider resetting its password from the Users tab.`);
+        } catch (createError: any) {
+          console.error('Auto-create shipper from phone failed:', createError);
+          item.meta.warnings.push(`Found a phone number (${phone}) but couldn't auto-create an account for it; pick a shipping entity manually.`);
         }
       }
 

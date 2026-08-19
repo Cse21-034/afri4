@@ -86,6 +86,7 @@ const anthropicJobSchema = z.object({
 const anthropicShipperMatchSchema = z.object({
   shipperId: z.number(),
   matchedName: z.string(),
+  phoneNumber: z.string(),
   confidence: z.enum(['high', 'low', 'none']),
   reason: z.string(),
 });
@@ -154,7 +155,7 @@ export interface ExtractionResult {
     meta: {
       sourceText: string;
       confidence: 'high' | 'medium' | 'low';
-      shipperMatch: { shipperId: number | null; matchedName: string | null; confidence: 'high' | 'low' | 'none'; reason: string };
+      shipperMatch: { shipperId: number | null; matchedName: string | null; phoneNumber: string | null; confidence: 'high' | 'low' | 'none'; reason: string };
       warnings: string[];
       nullFields: string[];
     };
@@ -200,6 +201,7 @@ function normalizeMeta(meta: AnthropicMeta) {
       ...meta.shipperMatch,
       shipperId: numOrNull(meta.shipperMatch.shipperId),
       matchedName: strOrNull(meta.shipperMatch.matchedName),
+      phoneNumber: strOrNull(meta.shipperMatch.phoneNumber),
     },
   };
 }
@@ -354,8 +356,15 @@ Match RAW_MESSAGE against SHIPPING_ENTITIES:
 - None: no match, or only a generic broker number with no company named →
   shipperId 0, confidence "none".
 NEVER output an id not in SHIPPING_ENTITIES. If confidence is "low" or "none", set
-job.shipperId to 0 (the admin will choose). Always fill meta.shipperMatch with
-your reasoning.
+job.shipperId to 0 (the app will look up or create an account by phone number).
+Always fill meta.shipperMatch with your reasoning.
+
+shipperMatch.phoneNumber: the contact phone number for this load, exactly as it
+appears in the text (digits, spaces, dashes, "+", parentheses all fine — don't
+reformat it), if a phone number is present anywhere in the message. This is
+independent of whether it matched a SHIPPING_ENTITIES phone — extract it whenever
+one is written, even on a "none" match, since it's how a new account gets created
+for a shipper who isn't in the system yet. "" if no phone number appears at all.
 
 ## Excluding non-loads
 Border/customs notices, weighbridge updates, greetings, follower counts, standalone
@@ -389,14 +398,22 @@ export async function extractJobsFromText(
     // single well-specified extraction call, not open-ended agentic work.
     model: 'claude-sonnet-5',
     max_tokens: 8000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userMessage }],
+    // Extraction against a fixed schema doesn't benefit from extended reasoning, and thinking
+    // is on by default on Sonnet 5 if left unset -- disabling it is most of the ~29s → faster
+    // latency win. The usual failure modes of disabled thinking (a tool call written as plain
+    // text, <thinking> tags leaking into the response) don't apply here: output_config.format
+    // constrains the response to the JSON schema itself, there's no free-text escape hatch for
+    // either to leak into.
+    thinking: { type: 'disabled' },
     output_config: {
+      effort: 'low',
       // anthropicExtractionSchema, not the nullable ExtractionResult shape -- the Messages
       // structured-outputs schema caps nullable/union-typed parameters at 16, and this
       // extraction wants ~23. See the sentinel-based schema comment above.
       format: zodOutputFormat(anthropicExtractionSchema),
     },
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userMessage }],
   });
 
   if (response.stop_reason === 'refusal') {
